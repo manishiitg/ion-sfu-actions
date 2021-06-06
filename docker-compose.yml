@@ -1,0 +1,8 @@
+version: "3.7"
+
+services:
+  actions:
+    build:
+        context : .
+    restart: always
+    network_mode: host
