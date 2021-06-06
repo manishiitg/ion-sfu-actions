@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -95,10 +94,10 @@ func GetHost(addr string, new_session string, notify chan string, cancel <-chan 
 							sfu_host = strings.Replace(sfu_host, "700", "5005", -1) //TODO need a proper solution
 							sfu_host = strings.Replace(sfu_host, "\"", "", -1)
 							if len(response.Session) > 0 {
-								fmt.Println("sfu host host", sfu_host, "for session", new_session, "got new session", response.Session)
+								log.Infof("sfu host host", sfu_host, "for session", new_session, "got new session", response.Session)
 								notify <- sfu_host + "=" + response.Session //TODO this string is a temporary solution should be a strcut
 							} else {
-								fmt.Println("sfu host host", sfu_host, "for session", new_session)
+								log.Infof("sfu host host", sfu_host, "for session", new_session)
 								notify <- sfu_host
 							}
 							close(done)

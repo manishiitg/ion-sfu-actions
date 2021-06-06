@@ -12,7 +12,14 @@ func saveToDisk(c *gin.Context, e *etcdCoordinator) {
 	defer e.mu.Unlock()
 	cancel := make(chan struct{})
 	session := c.Param("session")
-	engine := tracktodisk.InitApi(e.serverIp, session, "webm", cancel)
+
+	storage := c.Query("storage")
+	if len(storage) == 0 {
+		storage = "cloud"
+	}
+	filename := c.Query("filename")
+
+	engine := tracktodisk.InitApi(e.serverIp, session, "webm", filename, storage, cancel)
 	e.diskActionCancel = cancel
 	e.engine = engine
 	c.Status(http.StatusOK)

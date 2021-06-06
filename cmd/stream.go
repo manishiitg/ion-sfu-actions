@@ -20,7 +20,7 @@ var streamCmd = &cobra.Command{
 var rtmp string
 
 func init() {
-	streamCmd.PersistentFlags().StringVarP(&rtmp, "rtmp", "", "rtmp://bom01.contribute.live-video.net/app/live_666332364_5791UvimKkDZW8edq8DAi4011wc4cR", "RTMP URL to publish stream") //TODO remove
+	streamCmd.PersistentFlags().StringVarP(&rtmp, "rtmp", "", "", "RTMP URL to publish stream")
 	rootCmd.AddCommand(streamCmd)
 }
 

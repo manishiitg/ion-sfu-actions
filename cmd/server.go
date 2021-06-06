@@ -28,8 +28,8 @@ var eaddr, ipaddr, port, saddr string
 
 func init() {
 	serverCmd.PersistentFlags().StringVarP(&eaddr, "eaddr", "e", "0.0.0.0:2379", "etcd host to connect")
-	serverCmd.PersistentFlags().StringVarP(&ipaddr, "ipaddr", "i", "5.9.18.28", "ip address of current server")         //TODO remove this ip
-	serverCmd.PersistentFlags().StringVarP(&saddr, "saddr", "s", "http://5.9.18.28:4000/", "server cluster ip address") //TODO remove this ip
+	serverCmd.PersistentFlags().StringVarP(&ipaddr, "ipaddr", "", "5.9.18.28", "ip address of current server")         //TODO remove this ip
+	serverCmd.PersistentFlags().StringVarP(&saddr, "saddr", "", "http://5.9.18.28:4000/", "server cluster ip address") //TODO remove this ip
 	serverCmd.PersistentFlags().StringVarP(&port, "port", "p", ":3050", "port of server")
 	serverCmd.MarkFlagRequired("ipaddr")
 	serverCmd.MarkFlagRequired("saddr")

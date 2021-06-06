@@ -5,6 +5,7 @@ go 1.16
 replace github.com/pion/ion-sdk-go => ./ion-sdk-go
 
 require (
+	cloud.google.com/go/storage v1.15.0 // indirect
 	github.com/at-wat/ebml-go v0.16.0 // indirect
 	github.com/gin-contrib/cors v1.3.1 // indirect
 	github.com/gin-gonic/gin v1.7.2

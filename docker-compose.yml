@@ -4,5 +4,14 @@ services:
   actions:
     build:
         context : .
+    image: xtechsample/actions
+    command: ["-port", ":3050", "-ipaddr" , "5.9.18.28" , "-saddr","http://5.9.18.28:4000/"] # "-eaddr", "5.9.18.28:2379",
     restart: always
+    network_mode: host
+
+  rtmp:
+    image: gwuhaolin/livego
+    command : "--config_file /etc/livego.yaml"
+    volumes:
+     - ./cfgs/rtmp/livego.yaml:/etc/livego.yaml
     network_mode: host

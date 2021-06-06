@@ -18,11 +18,12 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-func InitApi(serverip string, session string, vtype string, cancel <-chan struct{}) *sdk.Engine {
-	return Init(session, serverip, vtype, cancel)
+func InitApi(serverip string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) *sdk.Engine {
+	return Init(session, serverip, vtype, filename, storage, cancel)
 }
 
-func Init(session string, addr string, vtype string, cancel <-chan struct{}) *sdk.Engine {
+func Init(addr string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) *sdk.Engine {
+
 	e := util.GetEngine()
 
 	notify := make(chan string, 1)
@@ -34,11 +35,11 @@ func Init(session string, addr string, vtype string, cancel <-chan struct{}) *sd
 		sfu_host = strings.Split(sfu_host, "=")[0]
 	}
 
-	go run(e, sfu_host, session, vtype, cancel)
+	go run(e, sfu_host, session, vtype, filename, storage, cancel)
 	return e
 }
 
-func run(e *sdk.Engine, sfu_host string, session string, vtype string, cancel <-chan struct{}) {
+func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) {
 
 	// create a new client from engine
 	cid := fmt.Sprintf("%s_tracktodisk_%s", session, cuid.New())
@@ -82,7 +83,7 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, cancel <-
 		var onceTrackAudio sync.Once
 		var onceTrackVideo sync.Once
 
-		saver := createWebmSaver(session, cid)
+		saver := createWebmSaver(session, cid, filename, storage)
 		client.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 			if track.Kind() == webrtc.RTPCodecTypeAudio {
 				onceTrackAudio.Do(func() {
@@ -109,9 +110,10 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, cancel <-
 
 	select {
 	case <-cancel:
+		log.Infof("closed!")
 		return
 	}
-	log.Infof("closed!")
+
 }
 
 func tracktodisk(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, saver avp.Element, client *sdk.Client) {
@@ -133,14 +135,25 @@ func tracktodisk(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, saver 
 	})
 }
 
-func createWebmSaver(sid, pid string) avp.Element {
-	filewriter := elements.NewFileWriter(
-		path.Join("./out", fmt.Sprintf("%s-%s.webm", sid, pid)),
-		4096,
-	)
-	webm := elements.NewWebmSaver()
-	webm.Attach(filewriter)
-	return webm
+func createWebmSaver(sid, pid, filename, storage string) avp.Element {
+	if len(filename) == 0 {
+		filename = fmt.Sprintf("%s-%s.webm", sid, pid)
+	}
+	log.Infof("webm storage %v filename %v", storage, filename)
+	if storage == "local" {
+		filewriter := elements.NewFileWriter(
+			path.Join("./out", filename),
+			4096,
+		)
+		webm := elements.NewWebmSaver()
+		webm.Attach(filewriter)
+		return webm
+	} else {
+		filewriter := NewCloudFileWriter(filename)
+		webm := elements.NewWebmSaver()
+		webm.Attach(filewriter)
+		return webm
+	}
 }
 
 func pliLoop(client *sdk.Client, track *webrtc.TrackRemote, cycle uint) {
@@ -154,6 +167,7 @@ func pliLoop(client *sdk.Client, track *webrtc.TrackRemote, cycle uint) {
 		err := client.GetSubTransport().GetPeerConnection().WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{SenderSSRC: uint32(track.SSRC()), MediaSSRC: uint32(track.SSRC())}})
 		if err != nil {
 			log.Errorf("error writing pli %s", err)
+			return
 		}
 	}
 }

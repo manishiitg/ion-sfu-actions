@@ -67,8 +67,8 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	var onceTrackAudio sync.Once
 	var onceTrackVideo sync.Once
 
-	audioBuilder := samplebuilder.New(100, &codecs.OpusPacket{}, 48000)
-	videoBuilder := samplebuilder.New(100, &codecs.VP8Packet{}, 90000)
+	audioBuilder := samplebuilder.New(10, &codecs.OpusPacket{}, 48000)
+	videoBuilder := samplebuilder.New(10, &codecs.VP8Packet{}, 90000)
 
 	c1.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		if track.Kind() == webrtc.RTPCodecTypeAudio {
@@ -209,6 +209,8 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 		}
 	}()
 	defer c2.UnPublish(t)
+	time.Sleep(time.Second)
+
 	defer func() {
 		log.Infof("unpublish track here")
 		lock.Lock()

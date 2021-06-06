@@ -1,4 +1,19 @@
 
+## Tools to work with Pion SFU ##
+
+
+This is code sample of some actions to be performed with ion-sfu using apis and command line both.
+
+- Load Testing   (go run main.go laodtest)
+- RTMP to Track  (go run main.go rtmptotrack)
+- Save to Webm   (go run main.go savetodisk)
+- Track to RTMP Publish   (go run main.go stream)
+- API Server     (go run main.go server)
+
+
+This is not ready for production at all right now, rather its more experimental basis
+
+
 Testing Videos
 ================
 https://test-videos.co.uk/bigbuckbunny/webm-vp9
@@ -28,3 +43,8 @@ ffmpeg -i rtmp://localhost:1935/live/movie -an -vcodec libvpx -cpu-used 5 -deadl
 ffmpeg -re -stream_loop 400 -i /var/tmp/big_buck_bunny_360p_10mb.mp4 -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -f flv rtmp://localhost:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
 
 ffmpeg -re -stream_loop 100 -i demo.flv -c copy -f flv rtmp://localhost:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
+
+
+
+
+export GO111MODULE=on

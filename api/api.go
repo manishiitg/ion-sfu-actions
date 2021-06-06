@@ -25,9 +25,17 @@ func (e *etcdCoordinator) InitApi(port string) error {
 			stopMirror(c, e)
 		})
 		mirrorr.GET("/sync/:session1/:session2", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
 			startMirror(c, e)
 		})
 		mirrorr.GET("/syncsfu/:session1/:session2/:addr1/:addr2", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
 			startMirrorWithAddr(c, e)
 		})
 
@@ -38,6 +46,10 @@ func (e *etcdCoordinator) InitApi(port string) error {
 			stopLoadTest(c, e)
 		})
 		loadtestr.GET("/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
 			startLoadTest(c, e)
 		})
 		loadtestr.GET("/stats", func(c *gin.Context) {
@@ -47,7 +59,19 @@ func (e *etcdCoordinator) InitApi(port string) error {
 
 	streamr := r.Group("stream")
 	{
+
+		streamr.GET("/live/:rtmp/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
+			startRealStream(c, e)
+		})
 		streamr.GET("/demo/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
 			startTestStream(c, e)
 		})
 		streamr.GET("/stop", func(c *gin.Context) {
@@ -58,10 +82,35 @@ func (e *etcdCoordinator) InitApi(port string) error {
 	diskr := r.Group("disk")
 	{
 		diskr.GET("/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
 			saveToDisk(c, e)
 		})
 		diskr.GET("/stop", func(c *gin.Context) {
 			stopDisk(c, e)
+		})
+	}
+
+	rtpr := r.Group("rtmp")
+	{
+		rtpr.GET("/live/:rtmp/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
+			startActualRtmp(c, e)
+		})
+		rtpr.GET("/demo/:session", func(c *gin.Context) {
+			if e.engine != nil {
+				c.String(http.StatusOK, "Engine Already Used!")
+				return
+			}
+			startDemoRtmp(c, e)
+		})
+		rtpr.GET("/stop", func(c *gin.Context) {
+			stopRtmp(c, e)
 		})
 	}
 

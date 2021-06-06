@@ -29,7 +29,7 @@ type udpConn struct {
 
 func InitApi(serverIp string, session string, rtmp string, cancel <-chan struct{}) (*sdk.Engine, error) {
 	if len(rtmp) == 0 {
-		rtmp = "rtmp://bom01.contribute.live-video.net/app/live_666332364_5791UvimKkDZW8edq8DAi4011wc4cR"
+		rtmp = "rtmp://bom01.contribute.live-video.net/app/live_666332364_5791UvimKkDZW8edq8DAi4011wc4cR" //TODO
 	}
 	return Init(session, serverIp, rtmp, cancel)
 }

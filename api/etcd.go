@@ -32,6 +32,7 @@ type etcdCoordinator struct {
 	loadActionCancel   chan struct{}
 	streamActionCancel chan struct{}
 	diskActionCancel   chan struct{}
+	rtmpActionCancel   chan struct{}
 	serverIp           string
 }
 
