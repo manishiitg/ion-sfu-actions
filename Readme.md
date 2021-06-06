@@ -33,14 +33,16 @@ ffmpeg -protocol_whitelist file,rtp,udp,https,tls,tcp -i subscribe.sdp -c:v libx
 
 
 
-RTMPTOWEBRTC
+RTMP TO WEBRTC
 ==============
 
 ffmpeg -i '$RTMP_URL' -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:5004 -vn -c:a libopus -f rtp rtp:/127.0.0.1:5006
 
-ffmpeg -i rtmp://localhost:1935/live/movie -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:3004 -vn -c:a libopus -f rtp rtp://127.0.0.1:3006
 
 ffmpeg -re -stream_loop 400 -i /var/tmp/big_buck_bunny_360p_10mb.mp4 -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -f flv rtmp://localhost:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
+
+ffmpeg -i rtmp://localhost:1935/live/movie -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:3004 -vn -c:a libopus -f rtp rtp://127.0.0.1:3006
+
 
 ffmpeg -re -stream_loop 100 -i demo.flv -c copy -f flv rtmp://localhost:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
 
