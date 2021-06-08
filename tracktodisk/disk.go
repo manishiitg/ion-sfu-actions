@@ -18,11 +18,11 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-func InitApi(serverip string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) *sdk.Engine {
-	return Init(session, serverip, vtype, filename, storage, cancel)
+func InitApi(serverip string, session string, vtype string, filename string, storage string, cancel chan struct{}) *sdk.Engine {
+	return Init(serverip, session, vtype, filename, storage, cancel)
 }
 
-func Init(addr string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) *sdk.Engine {
+func Init(addr string, session string, vtype string, filename string, storage string, cancel chan struct{}) *sdk.Engine {
 
 	e := util.GetEngine()
 
@@ -39,20 +39,34 @@ func Init(addr string, session string, vtype string, filename string, storage st
 	return e
 }
 
-func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename string, storage string, cancel <-chan struct{}) {
+var diskTrackMap = make(map[string]string)
 
+func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename string, storage string, cancel chan struct{}) {
+	if util.IsActionRunning() {
+		log.Errorf("action already running")
+	}
+	util.StartAction("tracktodisk", session)
+	defer util.CloseAction()
 	// create a new client from engine
 	cid := fmt.Sprintf("%s_tracktodisk_%s", session, cuid.New())
 	client, err := sdk.NewClient(e, sfu_host, cid)
 	if err != nil {
-		log.Errorf("err=%v", err)
+		log.Errorf("err=%v sfu host %v", err, sfu_host)
+		util.ErrorAction(err)
 		return
+	}
+
+	isstarted := false
+	//clear if any orphan tracks
+	for idx, _ := range diskTrackMap {
+		delete(diskTrackMap, idx)
 	}
 
 	if vtype == "mp4" {
 		// not working getting error
 		//AL lib: (EE) ALCplaybackAlsa_open: Could not open playback device 'default': No such file or directory
 		// GStreamer Error: Failed to initialize egl: EGL_NOT_INITIALIZED
+		//error fixed but still doesnt work
 		compositeSavePath := "./out/test.mp4"
 
 		encodePipeline := fmt.Sprintf(`
@@ -76,6 +90,7 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 			compositor.AddInputTrack(track, client.GetSubTransport().GetPeerConnection())
 		}
 		defer compositor.Stop()
+
 	} else {
 		var onceTrackAudio sync.Once
 		var onceTrackVideo sync.Once
@@ -92,6 +107,7 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 					tracktodisk(track, receiver, saver, client)
 				})
 			}
+			isstarted = true
 
 		}
 
@@ -102,13 +118,26 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 	defer e.DelClient(client)
 	if err != nil {
 		log.Errorf("err=%v", err)
+		util.ErrorAction(err)
 		return
 	}
 
-	select {
-	case <-cancel:
-		log.Infof("closed!")
-		return
+	time.AfterFunc(time.Second*60, func() {
+		isstarted = true
+	})
+	timer := time.NewTicker(10 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			if isstarted && len(diskTrackMap) == 0 {
+				log.Infof("tracks closed!")
+				close(cancel)
+			}
+		case <-cancel:
+			log.Infof("closed!")
+			return
+		}
 	}
 
 }
@@ -125,16 +154,22 @@ func tracktodisk(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, saver 
 			log.Errorf("error writing pli %s", err)
 		}
 	}
+	diskTrackMap[track.ID()] = track.Kind().String()
 	builder.AttachElement(saver)
 	go pliLoop(client, track, 1000)
 	builder.OnStop(func() {
-		log.Infof("builder stopped")
+		log.Infof("builder stopped ID: %v Kind %v", builder.Track().ID(), builder.Track().Kind())
+		delete(diskTrackMap, builder.Track().ID())
 	})
 }
 
 func createWebmSaver(sid, pid, filename, storage string) avp.Element {
 	if len(filename) == 0 {
 		filename = fmt.Sprintf("%s-%s.webm", sid, pid)
+	} else {
+		if !strings.Contains(filename, ".webm") {
+			filename = filename + ".webm"
+		}
 	}
 	log.Infof("webm storage %v filename %v", storage, filename)
 	if storage == "local" {

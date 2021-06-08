@@ -92,6 +92,11 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 	log.Infof("run session=%v file=%v role=%v total=%v duration=%v cycle=%v video=%v audio=%v simulcast=%v\n", session, file, role, total, duration, cycle, audio, video, simulcast)
 	timer := time.NewTimer(time.Duration(duration) * time.Second)
 
+	if util.IsActionRunning() {
+		log.Errorf("action already running")
+	}
+	util.StartAction("loadtest", session)
+	defer util.CloseAction()
 	for i := 0; i < total; i++ {
 		go func(i int, session string) {
 			new_session := session
@@ -235,17 +240,6 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 						Direction: webrtc.RTPTransceiverDirectionSendonly,
 					})
 					defer c.UnPublish(t2)
-
-					// this is not needed as we are using onTrack already
-					// go func() {
-					// 	rtcpBuf := make([]byte, 1500)
-					// 	for {
-					// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
-					// 			log.Errorf("videoSender rtcp error", err)
-					// 			return
-					// 		}
-					// 	}
-					// }()
 
 					producer.Start()
 					defer producer.Stop()

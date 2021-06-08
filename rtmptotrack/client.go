@@ -42,13 +42,18 @@ func Init(session string, addr string, rtmpInput string, cancel <-chan struct{})
 	cid := fmt.Sprintf("%s_tracktodisk_%s", session, cuid.New())
 	client, err := sdk.NewClient(e, sfu_host, cid)
 	if err != nil {
-		log.Errorf("err=%v", err)
+		log.Errorf("err=%v sfu host %v", err, sfu_host)
 	}
 	go run(e, client, session, rtmpInput, cancel)
 	return e
 }
 
 func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, cancel <-chan struct{}) {
+	if util.IsActionRunning() {
+		log.Errorf("action already running")
+	}
+	util.StartAction("rtmptotrack", session)
+	defer util.CloseAction()
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	wait := make(chan struct{})
 	if rtmpInput == "demo" {
@@ -68,21 +73,39 @@ func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, ca
 	uniq := cuid.New()
 	videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeVP8}, "video", "rtmptotrack"+uniq)
 	if err != nil {
-		panic(err)
+		log.Errorf("err", err)
+		util.ErrorAction(err)
+		ctxCancel()
+		return
 	}
 
 	audioTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus}, "audio", "rtmptotrack"+uniq)
 	if err != nil {
-		panic(err)
+		log.Errorf("err", err)
+		ctxCancel()
+		util.ErrorAction(err)
+		return
 	}
 
 	log.Infof("joining session=%v", session)
 	client.Join(session, nil)
-	t, err := client.Publish(audioTrack)
-	processRTCP(t)
-	t2, err := client.Publish(videoTrack)
-	processRTCP(t2)
 	defer e.DelClient(client)
+	// t, err := client.Publish(audioTrack)
+	// processRTCP(t)
+	// t2, err := client.Publish(videoTrack)
+	// processRTCP(t2)
+
+	t, _ := client.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(audioTrack, webrtc.RTPTransceiverInit{
+		Direction: webrtc.RTPTransceiverDirectionSendonly,
+	})
+
+	defer client.UnPublish(t)
+	t2, _ := client.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(videoTrack, webrtc.RTPTransceiverInit{
+		Direction: webrtc.RTPTransceiverDirectionSendonly,
+	})
+	defer client.UnPublish(t2)
+	time.Sleep(5 * time.Millisecond)
+	client.OnNegotiationNeeded()
 
 	go rtpToTrack(client, audioTrack, &codecs.OpusPacket{}, 48000, 3006, cancel)
 	go rtpToTrack(client, videoTrack, &codecs.VP8Packet{}, 90000, 3004, cancel)
@@ -100,6 +123,7 @@ func rtpToTrack(client *sdk.Client, track *webrtc.TrackLocalStaticSample, depack
 	listener, err := net.ListenUDP("udp", &net.UDPAddr{IP: net.ParseIP("127.0.0.1"), Port: port})
 	if err != nil {
 		log.Errorf("error %v", err)
+		util.ErrorAction(err)
 		return
 	}
 	defer func() {
@@ -182,6 +206,7 @@ func streamMp4ToRtmp(ctx context.Context, wait chan struct{}) error {
 	ffmpegOut, _ := ffmpeg.StderrPipe()
 	if err := ffmpeg.Start(); err != nil {
 		log.Infof("err %v", err)
+		util.ErrorAction(err)
 		return err
 	}
 

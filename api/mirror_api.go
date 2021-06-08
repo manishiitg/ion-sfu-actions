@@ -25,7 +25,7 @@ func startMirror(c *gin.Context, e *etcdCoordinator) {
 		e.mu.Lock()
 		defer e.mu.Unlock()
 		cancel := make(chan struct{})
-		go mirrorsfu.Init(c.Param("session1"), c.Param("session2"), cancel)
+		go mirrorsfu.Init(c.Param("session1"), c.Param("session2"), e.serverIp, cancel)
 		e.mirrorActionCancel = cancel
 		c.Status(http.StatusOK)
 	}

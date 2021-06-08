@@ -1,7 +1,9 @@
 package mirrorsfu
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -20,7 +22,11 @@ import (
 )
 
 func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
-
+	if util.IsActionRunning() {
+		log.Errorf("action already running")
+	}
+	util.StartAction("mirrorsfu", session)
+	defer util.CloseAction()
 	//doens't work properly not sure why
 	e := util.GetEngine()
 
@@ -74,13 +80,13 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		if track.Kind() == webrtc.RTPCodecTypeAudio {
 			onceTrackAudio.Do(func() {
 				tracktotrack(track, receiver, c2, done, cid1, audioBuilder)
-				pliLoop(c1, track, 1000)
+				go pliLoop(c1, track, 1000)
 			})
 		}
 		if track.Kind() == webrtc.RTPCodecTypeVideo {
 			onceTrackVideo.Do(func() {
-				tracktotrack(track, receiver, c2, done, cid1, videoBuilder)
-				pliLoop(c1, track, 1000)
+				go tracktotrack(track, receiver, c2, done, cid1, videoBuilder)
+				go pliLoop(c1, track, 1000)
 			})
 		}
 
@@ -116,11 +122,13 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 			case <-cancel:
 				return
 			case <-ticker.C:
-				clients, totalRecvBW, totalSendBW := e.GetStat(3)
-				info := fmt.Sprintf("Clients: %d\n", clients)
-				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
-				info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+
+				recvByte = recvByte / 3 / 1000
+				info := ""
+				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", recvByte)
+				// info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
 				log.Infof(info)
+				recvByte = 0
 			}
 		}
 	}()
@@ -135,7 +143,7 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 			log.Infof("Got signal, beginning shutdown", "signal", sig)
 			close(cancel)
 			close(done)
-			time.AfterFunc(10*time.Second, func() {
+			time.AfterFunc(time.Second, func() {
 				os.Exit(1)
 			})
 		case <-done:
@@ -144,11 +152,11 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		case <-ticker.C:
 			lock.Lock()
 			no1 := len(tracks[cid1])
-			no2 := len(tracks[cid2])
-			log.Infof("session tracker c1:%v no1:%v c2:%v no2:%v", cid1, no1, cid2, no2)
+			// no2 := len(tracks[cid2])
+			// log.Infof("session tracker c1:%v no1:%v c2:%v no2:%v", cid1, no1, cid2, no2)
 			lock.Unlock()
-			recvBW := recvByte / 10 / 1000
-			log.Infof("recvBW %v", recvBW)
+			// recvBW := recvByte / 10 / 1000
+			// log.Infof("recvBW %v", recvBW)
 			if no1 == 0 { // || no2 == 0
 				log.Infof("no tracks found closing")
 				close(done)
@@ -160,15 +168,15 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	}
 }
 
-func Init(session, session2 string, cancel chan struct{}) {
-	InitWithAddress(session, session2, "", cancel)
+func Init(session, session2, addr string, cancel chan struct{}) {
+	InitWithAddress(session, session2, addr, cancel)
 }
 
 var lock sync.Mutex
 
 type TrackMap struct {
 	id    string
-	track *webrtc.TrackLocalStaticSample
+	track *webrtc.TrackLocalStaticRTP
 }
 
 var tracks = make(map[string][]TrackMap)
@@ -196,12 +204,12 @@ var tracks = make(map[string][]TrackMap)
 // 	})
 // }
 
-var recvByte int
+var recvByte, sendByte int
 
 func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *sdk.Client, done chan struct{}, cid string, sampleBuffer *samplebuilder.SampleBuilder) {
 	log.Infof("GOT TRACK id%v mime%v kind %v stream %v", track.ID(), track.Codec().MimeType, track.Kind(), track.StreamID())
 
-	newTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: track.Codec().MimeType}, "mirror-"+track.ID(), "mirror-"+track.StreamID())
+	newTrack, err := webrtc.NewTrackLocalStaticRTP(webrtc.RTPCodecCapability{MimeType: track.Codec().MimeType}, "mirror-"+track.ID(), "mirror-"+track.StreamID())
 	if err != nil {
 		panic(err)
 	}
@@ -212,21 +220,27 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 	})
 	lock.Unlock()
 
+	// t, _ := c2.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(newTrack, webrtc.RTPTransceiverInit{
+	// 	Direction: webrtc.RTPTransceiverDirectionSendonly,
+	// })
+
 	t, err := c2.Publish(newTrack)
 	if err != nil {
 		log.Errorf("publish err=%v", err)
 		return
 	}
-	// go func() {
-	// 	rtcpBuf := make([]byte, 1500)
-	// 	for {
-	// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
-	// 			return
-	// 		}
-	// 	}
-	// }()
+
+	go func() {
+		rtcpBuf := make([]byte, 1500)
+		for {
+			if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+				return
+			}
+		}
+	}()
 	defer c2.UnPublish(t)
 	time.Sleep(time.Second)
+	// c2.OnNegotiationNeeded()
 
 	defer func() {
 		log.Infof("unpublish track here")
@@ -241,7 +255,7 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 		tracks[cid] = newtracks
 		lock.Unlock()
 	}()
-	// rtpBuf := make([]byte, 1400)
+	rtpBuf := make([]byte, 1400)
 
 	for {
 		select {
@@ -249,39 +263,43 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 			log.Infof("stopping tracks publishing")
 			return
 		default:
+			// log.Infof("x")
+			// rtpPacket, _, err := track.ReadRTP()
+			// if err != nil {
+			// 	log.Infof("track read error")
+			// 	return
+			// }
+			// recvByte += len(rtpPacket.Payload)
+			// log.Infof("got byptes %v kind %v", recvByte, track.Kind().String())
 
-			rtpPacket, _, err := track.ReadRTP()
-			if err != nil {
-				log.Infof("track read error")
-				return
-			}
+			// sampleBuffer.Push(rtpPacket)
+			// for {
+			// 	sample := sampleBuffer.Pop()
+			// 	if sample == nil {
+			// 		log.Infof("nil sample")
+			// 		break
+			// 	}
 
-			sampleBuffer.Push(rtpPacket)
-			for {
-				sample := sampleBuffer.Pop()
-				if sample == nil {
-					break
-				}
+			// 	if track.Kind().String() == "video" {
 
-				if track.Kind().String() == "video" {
+			// 		// Read VP8 header.
+			// 		videoKeyframe := (sample.Data[0]&0x1 == 0)
+			// 		if videoKeyframe {
+			// 			log.Infof("video key frame")
+			// 			// Keyframe has frame information.
+			// 			raw := uint(sample.Data[6]) | uint(sample.Data[7])<<8 | uint(sample.Data[8])<<16 | uint(sample.Data[9])<<24
+			// 			width := int(raw & 0x3FFF)
+			// 			height := int((raw >> 16) & 0x3FFF)
 
-					// Read VP8 header.
-					videoKeyframe := (sample.Data[0]&0x1 == 0)
-					if videoKeyframe {
-						// Keyframe has frame information.
-						raw := uint(sample.Data[6]) | uint(sample.Data[7])<<8 | uint(sample.Data[8])<<16 | uint(sample.Data[9])<<24
-						width := int(raw & 0x3FFF)
-						height := int((raw >> 16) & 0x3FFF)
+			// 			log.Infof("width %v height %v", width, height)
 
-						log.Infof("width %v height %v", width, height)
-
-					}
-				}
-
-				if writeErr := newTrack.WriteSample(*sample); writeErr != nil {
-					panic(writeErr)
-				}
-			}
+			// 		}
+			// 	}
+			// 	log.Infof("writing sample")
+			// 	if writeErr := newTrack.WriteSample(*sample); writeErr != nil {
+			// 		log.Errorf("write err %v", writeErr)
+			// 	}
+			// }
 
 			// Read
 			// rtpPacket, _, err := track.ReadRTP()
@@ -297,18 +315,20 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 			// 	return
 			// }
 
-			// i, _, readErr := track.Read(rtpBuf)
-			// if readErr != nil {
-			// 	log.Infof("track read error")
-			// 	return
-			// }
-			// if _, err = newTrack.Write(rtpBuf[:i]); err != nil && !errors.Is(err, io.ErrClosedPipe) {
-			// 	panic(err)
-			// }
+			i, _, readErr := track.Read(rtpBuf)
+			if readErr != nil {
+				log.Infof("track read error")
+				return
+			}
+			recvByte += i
+			if _, err = newTrack.Write(rtpBuf[:i]); err != nil && !errors.Is(err, io.ErrClosedPipe) {
+				log.Infof("track write err", err)
+				return
+			}
 
 		}
 	}
-	log.Warnf("unpublish track")
+
 }
 
 func pliLoop(client *sdk.Client, track *webrtc.TrackRemote, cycle uint) {
@@ -322,6 +342,7 @@ func pliLoop(client *sdk.Client, track *webrtc.TrackRemote, cycle uint) {
 		err := client.GetSubTransport().GetPeerConnection().WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{SenderSSRC: uint32(track.SSRC()), MediaSSRC: uint32(track.SSRC())}})
 		if err != nil {
 			log.Errorf("error writing pli %s", err)
+			return
 		}
 	}
 }

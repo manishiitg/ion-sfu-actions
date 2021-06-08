@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/manishiitg/actions/util"
 	log "github.com/pion/ion-log"
 	sdk "github.com/pion/ion-sdk-go"
 
@@ -85,8 +86,7 @@ type Load struct {
 func (e *etcdCoordinator) getHostLoad() Load {
 	x, _ := cpu.Percent(time.Second, false)
 	task := 0
-	// log.Infof("engine %v", e.engine)
-	if e.engine != nil {
+	if util.IsActionRunning() {
 		task = 1
 	}
 	load := Load{

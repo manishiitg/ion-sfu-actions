@@ -5,6 +5,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
+	"github.com/manishiitg/actions/util"
 )
 
 func (e *etcdCoordinator) InitApi(port string) error {
@@ -17,6 +18,31 @@ func (e *etcdCoordinator) InitApi(port string) error {
 		c.JSON(200, gin.H{
 			"message": "pong",
 		})
+	})
+
+	r.GET("/status", func(c *gin.Context) {
+		c.JSON(200, *util.GetActionStatus())
+	})
+
+	r.GET("/stop", func(c *gin.Context) {
+		status := util.GetActionStatus()
+		if status.IsActive {
+			if status.ActionType == "tracktodisk" {
+				close(e.diskActionCancel)
+			}
+			if status.ActionType == "loadtest" {
+				close(e.loadActionCancel)
+			}
+			if status.ActionType == "rtmptotrack" {
+				close(e.rtmpActionCancel)
+			}
+			if status.ActionType == "tracktortp" {
+				close(e.streamActionCancel)
+			}
+			e.engine = nil
+			util.CloseAction()
+		}
+
 	})
 
 	mirrorr := r.Group("mirror")
@@ -60,7 +86,7 @@ func (e *etcdCoordinator) InitApi(port string) error {
 	streamr := r.Group("stream")
 	{
 
-		streamr.GET("/live/:rtmp/:session", func(c *gin.Context) {
+		streamr.GET("/live/:session/:rtmp", func(c *gin.Context) {
 			if e.engine != nil {
 				c.String(http.StatusOK, "Engine Already Used!")
 				return
@@ -95,7 +121,7 @@ func (e *etcdCoordinator) InitApi(port string) error {
 
 	rtpr := r.Group("rtmp")
 	{
-		rtpr.GET("/live/:rtmp/:session", func(c *gin.Context) {
+		rtpr.GET("/live/:session/:rtmp", func(c *gin.Context) {
 			if e.engine != nil {
 				c.String(http.StatusOK, "Engine Already Used!")
 				return

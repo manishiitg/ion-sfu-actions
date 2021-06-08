@@ -1,12 +1,13 @@
 package tracktodisk
 
 import (
-	"cloud.google.com/go/storage"
 	"context"
+	"os"
+
+	"cloud.google.com/go/storage"
 	avp "github.com/pion/ion-avp/pkg"
 	"github.com/pion/ion-avp/pkg/elements"
 	log "github.com/pion/ion-log"
-	"os"
 )
 
 // FileWriter instance
@@ -56,5 +57,7 @@ func (w *FileWriter) Write(sample *avp.Sample) error {
 func (w *FileWriter) Close() {
 	err := w.wr.Close()
 	w.client.Close()
-	log.Errorf("close error %v", err)
+	if err != nil {
+		log.Errorf("close error %v", err)
+	}
 }

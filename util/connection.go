@@ -108,6 +108,7 @@ func GetHost(addr string, new_session string, notify chan string, cancel <-chan 
 			}
 		}
 	} else {
+		log.Infof("direct sfu %v", addr)
 		notify <- addr
 	}
 

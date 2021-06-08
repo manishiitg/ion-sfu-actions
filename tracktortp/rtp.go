@@ -27,14 +27,14 @@ type udpConn struct {
 	track       bool
 }
 
-func InitApi(serverIp string, session string, rtmp string, cancel <-chan struct{}) (*sdk.Engine, error) {
+func InitApi(serverIp string, session string, rtmp string, cancel chan struct{}) (*sdk.Engine, error) {
 	if len(rtmp) == 0 {
 		rtmp = "rtmp://bom01.contribute.live-video.net/app/live_666332364_5791UvimKkDZW8edq8DAi4011wc4cR" //TODO
 	}
 	return Init(session, serverIp, rtmp, cancel)
 }
 
-func Init(session string, addr string, rtmp string, cancel <-chan struct{}) (*sdk.Engine, error) {
+func Init(session string, addr string, rtmp string, cancel chan struct{}) (*sdk.Engine, error) {
 	e := util.GetEngine()
 
 	notify := make(chan string, 1)
@@ -64,12 +64,14 @@ func Init(session string, addr string, rtmp string, cancel <-chan struct{}) (*sd
 		var raddr *net.UDPAddr
 		if raddr, err = net.ResolveUDPAddr("udp", fmt.Sprintf("127.0.0.1:%d", c.port)); err != nil {
 			log.Errorf("err %v", err)
+			util.ErrorAction(err)
 			return e, err
 		}
 
 		// Dial udp
 		if c.conn, err = net.DialUDP("udp", laddr, raddr); err != nil {
 			log.Errorf("err %v", err)
+			util.ErrorAction(err)
 			return e, err
 		}
 	}
@@ -77,16 +79,22 @@ func Init(session string, addr string, rtmp string, cancel <-chan struct{}) (*sd
 	cid := fmt.Sprintf("%s_tracktortp_%s", session, cuid.New())
 	client, err := sdk.NewClient(e, sfu_host, cid)
 	if err != nil {
-		log.Errorf("err=%v", err)
+		log.Errorf("err=%v sfu host %v", err, sfu_host)
 		return e, err
 	}
 
 	go run(e, client, rtmp, session, cancel, udpConns)
 	return e, nil
 }
-func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel <-chan struct{}, udpConns map[string]*udpConn) {
+func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel chan struct{}, udpConns map[string]*udpConn) {
 	// subscribe rtp from sessoin
 	// comment this if you don't need save to file
+
+	if util.IsActionRunning() {
+		log.Errorf("action already running")
+	}
+	util.StartAction("tracktortp", session)
+	defer util.CloseAction()
 
 	for _, c := range udpConns {
 		defer func(conn net.PacketConn) {
@@ -98,11 +106,16 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 
+	isstarted := false
+	//clear if any orphan tracks
+	for idx, _ := range rtpTrackMap {
+		delete(rtpTrackMap, idx)
+	}
+
 	var oncePublish sync.Once
 	var onceTrackAudio sync.Once
 	var onceTrackVideo sync.Once
 	client.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-		log.Infof("ON Track")
 		oncePublish.Do(func() {
 			go publishtortmp(ctx, rtmp)
 		})
@@ -116,6 +129,7 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 				processTrack(track, receiver, cancel, udpConns, client)
 			})
 		}
+		isstarted = true
 	}
 
 	log.Infof("joining session=%v", session)
@@ -123,14 +137,31 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 	defer e.DelClient(client)
 	if err != nil {
 		log.Errorf("err=%v", err)
+		util.ErrorAction(err)
 	}
 
-	select {
-	case <-cancel:
-		ctxCancel()
-		return
+	time.AfterFunc(time.Second*60, func() {
+		isstarted = true
+	})
+	timer := time.NewTicker(10 * time.Second)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			log.Infof("isstarted %v rtpTrackMap %v", isstarted, len(rtpTrackMap))
+			if isstarted && len(rtpTrackMap) == 0 {
+				log.Infof("tracks closed!")
+				close(cancel)
+			}
+		case <-cancel:
+			ctxCancel()
+			log.Infof("closed!")
+			return
+		}
 	}
 }
+
+var rtpTrackMap = make(map[string]string)
 
 func processTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, cancel <-chan struct{}, udpConns map[string]*udpConn, client *sdk.Client) {
 	log.Infof("GOT TRACK %v", track.Kind())
@@ -140,6 +171,7 @@ func processTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, cance
 	}
 	c.track = true
 	udpConns[track.Kind().String()] = c
+	rtpTrackMap[track.ID()] = track.Kind().String()
 
 	// Send a PLI on an interval so that the publisher is pushing a keyframe every rtcpPLIInterval
 	go func() {
@@ -201,6 +233,10 @@ func processTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, cance
 			}
 		}
 	}
+	defer func() {
+		log.Infof("track stopped id %v kind %v", track.ID(), track.Kind().String())
+		delete(rtpTrackMap, track.ID())
+	}()
 }
 
 func publishtortmp(ctx context.Context, streamURL string) error {
