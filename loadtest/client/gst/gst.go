@@ -16,6 +16,7 @@ import (
 	"time"
 	"unsafe"
 
+	log "github.com/pion/ion-log"
 	"github.com/pion/webrtc/v3"
 	"github.com/pion/webrtc/v3/pkg/media"
 )
@@ -33,6 +34,7 @@ type Pipeline struct {
 }
 
 var boundTracks = make(map[string]*webrtc.TrackLocalStaticSample)
+var boundTrackStats = make(map[string]int)
 var boundRemoteTrackKeyframeCallbacks = make(map[string]func())
 
 var pipelinesLock sync.Mutex
@@ -166,6 +168,7 @@ func CreateTestSrcPipeline(audioTrack, videoTrack *webrtc.TrackLocalStaticSample
 func (p *Pipeline) BindAppsinkToTrack(t *webrtc.TrackLocalStaticSample) {
 	trackIdUnsafe := C.CString(t.ID())
 	boundTracks[t.ID()] = t
+	boundTrackStats[t.ID()] = 0
 	C.gstreamer_send_bind_appsink_track(p.Pipeline, trackIdUnsafe, trackIdUnsafe)
 }
 
@@ -205,6 +208,15 @@ func (p *Pipeline) Push(buffer []byte, appsrc string) {
 	C.gstreamer_receive_push_buffer(p.Pipeline, b, C.int(len(buffer)), inputElementUnsafe)
 }
 
+func (p *Pipeline) GetStats() int {
+	total := 0
+	for k, by := range boundTrackStats {
+		total += by
+		boundTrackStats[k] = 0
+	}
+	return total
+}
+
 //export goHandlePipelineBuffer
 func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, localTrackID *C.char) {
 	// log.Info("localtrack: %v", C.GoString(localTrackID))
@@ -215,8 +227,12 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		fmt.Println(nil, "nil track: %v ", C.GoString(localTrackID))
 		return
 	}
+
 	if err := track.WriteSample(media.Sample{Data: C.GoBytes(buffer, bufferLen), Duration: goDuration}); err != nil && err != io.ErrClosedPipe {
-		panic(err)
+		log.Infof("error writing sample %v", err)
+	} else {
+		log.Tracef("id=%v mime=%v kind=%v streamid=%v len=%v", track.ID(), track.Codec().MimeType, track.Kind(), track.StreamID(), int(bufferLen))
+		boundTrackStats[C.GoString(localTrackID)] += int(bufferLen)
 	}
 
 	C.free(buffer)

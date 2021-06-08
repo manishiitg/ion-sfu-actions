@@ -21,16 +21,18 @@ var diskCmd = &cobra.Command{
 
 var storage string
 var filename string
+var filetype string
 
 func init() {
 	diskCmd.PersistentFlags().StringVarP(&storage, "storage", "", "local", "where to store the file on local or cloud")
 	diskCmd.PersistentFlags().StringVarP(&filename, "filename", "", "sample", "name of file")
+	diskCmd.PersistentFlags().StringVarP(&filetype, "filetype", "", "webm", "filetype either webm or mp4")
 	rootCmd.AddCommand(diskCmd)
 }
 
 func compositeThread() {
 	cancel := make(chan struct{})
-	tasktodisk.Init(caddr, session, "webm", filename, storage, cancel)
+	tasktodisk.Init(caddr, session, filetype, filename, storage, cancel)
 
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)

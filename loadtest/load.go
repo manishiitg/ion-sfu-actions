@@ -11,6 +11,7 @@ import (
 	util "github.com/manishiitg/actions/util"
 	log "github.com/pion/ion-log"
 	sdk "github.com/pion/ion-sdk-go"
+	"github.com/pion/webrtc/v3"
 )
 
 func getFileByType(file string) string {
@@ -51,9 +52,10 @@ func getFileByType(file string) string {
 	if file == "h264" {
 		//TODO not working as of now need to debug
 		// load is there but doesn't play on browser. track should play on browser also
-		filepath = "/var/tmp/big_buck_bunny_360p_20mb.mp4"
+		// issue is on browser side
+		filepath = "/var/tmp/Big_Buck_Bunny_720_10s_1MB.mp4"
 		if _, err := os.Stat(filepath); os.IsNotExist(err) {
-			err := util.DownloadFile(filepath, "https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_20mb.mp4")
+			err := util.DownloadFile(filepath, "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4")
 			if err != nil {
 				log.Infof("error downloading file %v", err)
 				filepath = "test"
@@ -87,10 +89,8 @@ func Init(file, gaddr, session string, total, cycle, duration int, role string, 
 	return e
 }
 func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle int, video, audio bool, simulcast string, create_room int, capacity int, cancel chan struct{}) *sdk.Engine {
-	log.Warnf("run session=%v file=%v role=%v total=%v duration=%v cycle=%v video=%v audio=%v simulcast=%v\n", session, file, role, total, duration, cycle, audio, video, simulcast)
+	log.Infof("run session=%v file=%v role=%v total=%v duration=%v cycle=%v video=%v audio=%v simulcast=%v\n", session, file, role, total, duration, cycle, audio, video, simulcast)
 	timer := time.NewTimer(time.Duration(duration) * time.Second)
-
-	go e.Stats(3, cancel)
 
 	for i := 0; i < total; i++ {
 		go func(i int, session string) {
@@ -111,60 +111,82 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 			crole := role
 
 			if role == "sub" && i == 0 {
-				crole = "pubsub"
+				crole = "pubsub" // even if doing load test of sub, need one publisher at least!
 			}
 
 			switch crole {
 			case "pubsub":
 
 				cid := fmt.Sprintf("%s_pubsub_%d_%s", new_session, i, cuid.New())
-				log.Errorf("AddClient session=%v clientid=%v addr=%v", new_session, cid, sfu_host)
+				log.Infof("AddClient session=%v clientid=%v addr=%v", new_session, cid, sfu_host)
 				c, err := sdk.NewClient(e, sfu_host, cid)
 				if err != nil {
 					log.Errorf("%v", err)
 					break
 				}
-				c.Join(new_session, nil)
-				defer e.DelClient(c)
+
 				if !strings.Contains(file, ".webm") {
+					c.Join(new_session, nil)
+					defer e.DelClient(c)
 					var producer *client.GSTProducer
-					log.Warnf("starrting new gst producer")
+					log.Infof("starting new gst producer %v", file)
 					if file == "test" {
 						producer = client.NewGSTProducer("video", "")
 					} else {
 						producer = client.NewGSTProducer("screen", file)
 					}
-					log.Warnf("publishing tracks")
 
-					t, _ := c.Publish(producer.VideoTrack())
-					go func() {
-						rtcpBuf := make([]byte, 1500)
-						for {
-							if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
-								log.Errorf("videoSender rtcp error", err)
-								return
-							}
-						}
-					}()
+					t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.AudioTrack(), webrtc.RTPTransceiverInit{
+						Direction: webrtc.RTPTransceiverDirectionSendonly,
+					})
+
 					defer c.UnPublish(t)
-					defer t.Stop()
-					t2, _ := c.Publish(producer.AudioTrack())
+					t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.VideoTrack(), webrtc.RTPTransceiverInit{
+						Direction: webrtc.RTPTransceiverDirectionSendonly,
+					})
+					defer c.UnPublish(t2)
+
+					// this is not needed as we are using onTrack already
+					// go func() {
+					// 	rtcpBuf := make([]byte, 1500)
+					// 	for {
+					// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+					// 			log.Errorf("videoSender rtcp error", err)
+					// 			return
+					// 		}
+					// 	}
+					// }()
+
+					producer.Start()
+					defer producer.Stop()
+
+					time.Sleep(5 * time.Millisecond)
+					c.OnNegotiationNeeded()
+
 					go func() {
-						rtcpBuf := make([]byte, 1500)
+						ticker := time.NewTicker(3 * time.Second)
+						defer ticker.Stop()
 						for {
-							if _, _, rtcpErr := t2.Sender().Read(rtcpBuf); rtcpErr != nil {
-								log.Errorf("videoSender rtcp error", err)
+							select {
+							case <-cancel:
 								return
+							case <-ticker.C:
+								clients, totalRecvBW, _ := e.GetStat(3)
+								totalSendBW := producer.GetSendBandwidth(3)
+								info := fmt.Sprintf("Clients: %d\n", clients)
+								info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
+								info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+								log.Infof(info)
 							}
 						}
 					}()
-					defer c.UnPublish(t2)
-					defer t2.Stop()
-					go producer.Start()
-					defer producer.Stop()
-					log.Warnf("tracks published")
+
+					log.Infof("tracks published")
 				} else {
+					c.Join(new_session, nil)
+					defer e.DelClient(c)
 					c.PublishWebm(file, video, audio)
+					util.GetEngineStats(e, cancel)
 				}
 				c.Simulcast(simulcast)
 			case "sub":
@@ -179,6 +201,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 				c.Join(new_session, nil)
 				defer e.DelClient(c)
 				c.Simulcast(simulcast)
+				util.GetEngineStats(e, cancel)
 			case "pub":
 				cid := fmt.Sprintf("%s_pub_%d_%s", session, i, cuid.New())
 				log.Errorf("AddClient session=%v clientid=%v addr=%v", session, cid, sfu_host)
@@ -192,35 +215,75 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 				defer e.DelClient(c)
 				c.Simulcast(simulcast)
 				if !strings.Contains(file, ".webm") {
+
+					c.Join(new_session, nil)
+					defer e.DelClient(c)
 					var producer *client.GSTProducer
-					log.Warnf("starrting new gst producer")
+					log.Infof("starting new gst producer %v", file)
 					if file == "test" {
 						producer = client.NewGSTProducer("video", "")
 					} else {
 						producer = client.NewGSTProducer("screen", file)
 					}
-					log.Warnf("publishing tracks")
-					go producer.Start()
-					defer producer.Stop()
-					t, _ := c.Publish(producer.VideoTrack())
+
+					t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.AudioTrack(), webrtc.RTPTransceiverInit{
+						Direction: webrtc.RTPTransceiverDirectionSendonly,
+					})
+
 					defer c.UnPublish(t)
-					defer t.Stop()
-					t2, _ := c.Publish(producer.AudioTrack())
+					t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.VideoTrack(), webrtc.RTPTransceiverInit{
+						Direction: webrtc.RTPTransceiverDirectionSendonly,
+					})
 					defer c.UnPublish(t2)
-					defer t2.Stop()
-					log.Warnf("tracks published")
+
+					// this is not needed as we are using onTrack already
+					// go func() {
+					// 	rtcpBuf := make([]byte, 1500)
+					// 	for {
+					// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+					// 			log.Errorf("videoSender rtcp error", err)
+					// 			return
+					// 		}
+					// 	}
+					// }()
+
+					producer.Start()
+					defer producer.Stop()
+
+					time.Sleep(5 * time.Millisecond)
+					c.OnNegotiationNeeded()
+
+					go func() {
+						ticker := time.NewTicker(3 * time.Second)
+						defer ticker.Stop()
+						for {
+							select {
+							case <-cancel:
+								return
+							case <-ticker.C:
+								clients, totalRecvBW, _ := e.GetStat(3)
+								totalSendBW := producer.GetSendBandwidth(3)
+								info := fmt.Sprintf("Clients: %d\n", clients)
+								info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
+								info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+								log.Infof(info)
+							}
+						}
+					}()
+
 				} else {
 					c.PublishWebm(file, video, audio)
+					util.GetEngineStats(e, cancel)
 				}
 			default:
-				log.Errorf("invalid role! should be pubsub/sub")
+				log.Infof("invalid role! should be pubsub/sub")
 			}
 
 			select {
 			case <-timer.C:
 				return
 			case <-cancel:
-				log.Warnf("cancel called on load test")
+				log.Infof("cancel called on load test")
 				return
 			}
 		}(i, session)

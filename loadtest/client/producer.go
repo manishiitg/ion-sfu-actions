@@ -90,3 +90,8 @@ func (t *GSTProducer) Start() {
 	t.pipeline.Start()
 	t.pipeline.Play()
 }
+
+func (t *GSTProducer) GetSendBandwidth(cycle int) int {
+	bw := t.pipeline.GetStats() / cycle / 1000
+	return bw
+}

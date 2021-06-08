@@ -49,11 +49,11 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 		return
 	}
 
-	if vtype == "gstreamer" && false {
+	if vtype == "mp4" {
 		// not working getting error
 		//AL lib: (EE) ALCplaybackAlsa_open: Could not open playback device 'default': No such file or directory
 		// GStreamer Error: Failed to initialize egl: EGL_NOT_INITIALIZED
-		compositeSavePath := "test.mp4"
+		compositeSavePath := "./out/test.mp4"
 
 		encodePipeline := fmt.Sprintf(`
 				tee name=aenctee 
@@ -68,15 +68,12 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 				aenctee. ! queue ! savemux. 
 			`, compositeSavePath)
 		log.Infof("saving encoded stream", "path", compositeSavePath)
-
 		log.Infof("encoding composited stream")
 
 		compositor := gst.NewCompositorPipeline(encodePipeline)
 		compositor.Play()
 		client.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-			if track.Kind().String() == "video" {
-				compositor.AddInputTrack(track, client.GetSubTransport().GetPeerConnection())
-			}
+			compositor.AddInputTrack(track, client.GetSubTransport().GetPeerConnection())
 		}
 		defer compositor.Stop()
 	} else {

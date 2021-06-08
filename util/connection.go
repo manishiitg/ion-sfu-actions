@@ -2,6 +2,7 @@ package util
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -131,4 +132,23 @@ func DownloadFile(filepath string, url string) error {
 	// Write the body to file
 	_, err = io.Copy(out, resp.Body)
 	return err
+}
+
+func GetEngineStats(e *sdk.Engine, cancel <-chan struct{}) {
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cancel:
+				return
+			case <-ticker.C:
+				clients, totalRecvBW, totalSendBW := e.GetStat(3)
+				info := fmt.Sprintf("Clients: %d\n", clients)
+				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
+				info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+				log.Infof(info)
+			}
+		}
+	}()
 }

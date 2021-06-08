@@ -107,7 +107,24 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	log.Infof("mirroring now")
 
 	ticker := time.NewTicker(10 * time.Second)
-	go e.Stats(3, cancel)
+
+	go func() {
+		ticker := time.NewTicker(3 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-cancel:
+				return
+			case <-ticker.C:
+				clients, totalRecvBW, totalSendBW := e.GetStat(3)
+				info := fmt.Sprintf("Clients: %d\n", clients)
+				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
+				info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+				log.Infof(info)
+			}
+		}
+	}()
+
 	defer ticker.Stop()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -200,14 +217,14 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 		log.Errorf("publish err=%v", err)
 		return
 	}
-	go func() {
-		rtcpBuf := make([]byte, 1500)
-		for {
-			if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
-				return
-			}
-		}
-	}()
+	// go func() {
+	// 	rtcpBuf := make([]byte, 1500)
+	// 	for {
+	// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+	// 			return
+	// 		}
+	// 	}
+	// }()
 	defer c2.UnPublish(t)
 	time.Sleep(time.Second)
 
