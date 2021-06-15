@@ -21,12 +21,22 @@ import (
 	"github.com/pion/webrtc/v3/pkg/media/samplebuilder"
 )
 
+var recvByte, sendByte int
+
+// var lock sync.Mutex
+
+// type TrackMap struct {
+// 	id    string
+// 	track *webrtc.TrackLocalStaticRTP
+// }
+
+var tracks = make(map[string]string)
+
 func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	if util.IsActionRunning() {
 		log.Errorf("action already running")
 	}
 	util.StartAction("mirrorsfu", session)
-	defer util.CloseAction()
 	//doens't work properly not sure why
 	e := util.GetEngine()
 
@@ -62,14 +72,12 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		return
 	}
 
-	done := make(chan struct{})
-
-	// c1.OnDataChannel = func(dc *webrtc.DataChannel) {
-	// 	go dctodc(dc, c2)
-	// }
-	// c2.OnDataChannel = func(dc *webrtc.DataChannel) {
-	// 	go dctodc(dc, c1)
-	// }
+	c1.OnDataChannel = func(dc *webrtc.DataChannel) {
+		go dctodc(dc, c2)
+	}
+	c2.OnDataChannel = func(dc *webrtc.DataChannel) {
+		go dctodc(dc, c1)
+	}
 	var onceTrackAudio sync.Once
 	var onceTrackVideo sync.Once
 
@@ -79,13 +87,13 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	c1.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
 		if track.Kind() == webrtc.RTPCodecTypeAudio {
 			onceTrackAudio.Do(func() {
-				tracktotrack(track, receiver, c2, done, cid1, audioBuilder)
+				tracktotrack(track, receiver, c2, cancel, cid1, audioBuilder)
 				go pliLoop(c1, track, 1000)
 			})
 		}
 		if track.Kind() == webrtc.RTPCodecTypeVideo {
 			onceTrackVideo.Do(func() {
-				go tracktotrack(track, receiver, c2, done, cid1, videoBuilder)
+				go tracktotrack(track, receiver, c2, cancel, cid1, videoBuilder)
 				go pliLoop(c1, track, 1000)
 			})
 		}
@@ -112,27 +120,26 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	log.Infof("c2 joined  session %v", session2)
 	log.Infof("mirroring now")
 
-	ticker := time.NewTicker(10 * time.Second)
-
 	go func() {
-		ticker := time.NewTicker(3 * time.Second)
-		defer ticker.Stop()
+		ticker2 := time.NewTicker(3 * time.Second)
+		defer ticker2.Stop()
 		for {
 			select {
 			case <-cancel:
 				return
-			case <-ticker.C:
+			case <-ticker2.C:
 
 				recvByte = recvByte / 3 / 1000
 				info := ""
 				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", recvByte)
 				// info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+				util.UpdateActionProgress(info)
 				log.Infof(info)
 				recvByte = 0
 			}
 		}
 	}()
-
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
@@ -142,26 +149,19 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		case sig := <-sigs:
 			log.Infof("Got signal, beginning shutdown", "signal", sig)
 			close(cancel)
-			close(done)
 			time.AfterFunc(time.Second, func() {
 				os.Exit(1)
 			})
-		case <-done:
+		case <-cancel:
+			util.CloseAction()
 			log.Infof("mirror finished session %v addr1 %v session2 %v addr2 %v", session, addr, session2)
 			return
 		case <-ticker.C:
-			lock.Lock()
-			no1 := len(tracks[cid1])
-			// no2 := len(tracks[cid2])
-			// log.Infof("session tracker c1:%v no1:%v c2:%v no2:%v", cid1, no1, cid2, no2)
-			lock.Unlock()
-			// recvBW := recvByte / 10 / 1000
-			// log.Infof("recvBW %v", recvBW)
+			no1 := len(tracks)
+			log.Infof("session tracker c1:%v no1:%v", cid1, no1)
 			if no1 == 0 { // || no2 == 0
 				log.Infof("no tracks found closing")
-				close(done)
-			} else {
-				// fmt.Println("tracks found! ", no1)
+				close(cancel)
 			}
 
 		}
@@ -172,39 +172,28 @@ func Init(session, session2, addr string, cancel chan struct{}) {
 	InitWithAddress(session, session2, addr, cancel)
 }
 
-var lock sync.Mutex
-
-type TrackMap struct {
-	id    string
-	track *webrtc.TrackLocalStaticRTP
+func dctodc(dc *webrtc.DataChannel, c2 *sdk.Client) {
+	log.Warnf("New DataChannel %s %d\n", dc.Label())
+	dcID := fmt.Sprintf("dc %v", dc.Label())
+	log.Warnf("DCID %v", dcID)
+	dc2, err := c2.CreateDataChannel(dc.Label())
+	if err != nil {
+		return
+	}
+	dc.OnClose(func() {
+		dc2.Close()
+		return
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		log.Warnf("Message from DataChannel %v %v", dc.Label(), string(msg.Data))
+		dc2.SendText(string(msg.Data))
+	})
+	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// bi-directional data channels
+		log.Warnf("back msg %v", string(msg.Data))
+		dc.SendText(string(msg.Data))
+	})
 }
-
-var tracks = make(map[string][]TrackMap)
-
-// func dctodc(dc *webrtc.DataChannel, c2 *sdk.Client) {
-// 	log.Warnf("New DataChannel %s %d\n", dc.Label())
-// 	dcID := fmt.Sprintf("dc %v", dc.Label())
-// 	log.Warnf("DCID %v", dcID)
-// 	dc2, err := c2.CreateDataChannel(dc.Label())
-// 	if err != nil {
-// 		return
-// 	}
-// 	dc.OnClose(func() {
-// 		dc2.Close()
-// 		return
-// 	})
-// 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-// 		log.Warnf("Message from DataChannel %v %v", dc.Label(), string(msg.Data))
-// 		dc2.SendText(string(msg.Data))
-// 	})
-// 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
-// 		// bi-directional data channels
-// 		log.Warnf("back msg %v", string(msg.Data))
-// 		dc.SendText(string(msg.Data))
-// 	})
-// }
-
-var recvByte, sendByte int
 
 func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *sdk.Client, done chan struct{}, cid string, sampleBuffer *samplebuilder.SampleBuilder) {
 	log.Infof("GOT TRACK id%v mime%v kind %v stream %v", track.ID(), track.Codec().MimeType, track.Kind(), track.StreamID())
@@ -213,17 +202,7 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 	if err != nil {
 		panic(err)
 	}
-	lock.Lock()
-	tracks[cid] = append(tracks[cid], TrackMap{
-		id:    track.ID(),
-		track: newTrack,
-	})
-	lock.Unlock()
-
-	// t, _ := c2.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(newTrack, webrtc.RTPTransceiverInit{
-	// 	Direction: webrtc.RTPTransceiverDirectionSendonly,
-	// })
-
+	tracks[track.ID()] = track.Kind().String()
 	t, err := c2.Publish(newTrack)
 	if err != nil {
 		log.Errorf("publish err=%v", err)
@@ -231,6 +210,7 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 	}
 
 	go func() {
+		//nack
 		rtcpBuf := make([]byte, 1500)
 		for {
 			if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
@@ -240,20 +220,10 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 	}()
 	defer c2.UnPublish(t)
 	time.Sleep(time.Second)
-	// c2.OnNegotiationNeeded()
 
 	defer func() {
-		log.Infof("unpublish track here")
-		lock.Lock()
-		alltracks := tracks[cid]
-		newtracks := []TrackMap{}
-		for _, tr := range alltracks {
-			if newTrack.ID() != tr.id {
-				newtracks = append(newtracks, tr)
-			}
-		}
-		tracks[cid] = newtracks
-		lock.Unlock()
+		log.Infof("unpublish track here %v", tracks)
+		delete(tracks, track.ID())
 	}()
 	rtpBuf := make([]byte, 1400)
 
@@ -318,6 +288,9 @@ func tracktotrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, c2 *s
 			i, _, readErr := track.Read(rtpBuf)
 			if readErr != nil {
 				log.Infof("track read error")
+				return
+			}
+			if i == 0 {
 				return
 			}
 			recvByte += i

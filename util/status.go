@@ -36,7 +36,6 @@ func ErrorAction(err error) {
 func UpdateActionProgress(progress string) {
 	actionUpdate.Lock()
 	defer actionUpdate.Unlock()
-	actionUpdate.IsActive = true
 	actionUpdate.Progress = progress
 }
 func CloseAction() {

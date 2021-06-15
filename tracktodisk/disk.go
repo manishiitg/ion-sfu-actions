@@ -46,7 +46,6 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 		log.Errorf("action already running")
 	}
 	util.StartAction("tracktodisk", session)
-	defer util.CloseAction()
 	// create a new client from engine
 	cid := fmt.Sprintf("%s_tracktodisk_%s", session, cuid.New())
 	client, err := sdk.NewClient(e, sfu_host, cid)
@@ -136,6 +135,7 @@ func run(e *sdk.Engine, sfu_host string, session string, vtype string, filename 
 			}
 		case <-cancel:
 			log.Infof("closed!")
+			util.CloseAction()
 			return
 		}
 	}

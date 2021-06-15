@@ -30,12 +30,12 @@ type GSTProducer struct {
 // NewGSTProducer will create a new producer for a given client and a videoFile
 func NewGSTProducer(kind string, path string) *GSTProducer {
 	stream := fmt.Sprintf("gst-%v-%v", kind, cuid.New())
-	videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/h264", ClockRate: 90000}, cuid.New(), stream)
+	videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeH264}, cuid.New(), stream)
 	if err != nil {
 		panic(err)
 	}
 
-	audioTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "audio/opus", ClockRate: 48000}, cuid.New(), stream)
+	audioTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: webrtc.MimeTypeOpus}, cuid.New(), stream)
 	if err != nil {
 		panic(err)
 	}
@@ -83,6 +83,7 @@ func (t *GSTProducer) Pause(pause bool) {
 
 //Stop the pipeline
 func (t *GSTProducer) Stop() {
+	t.pipeline.Pause()
 }
 
 //Start the pipeline

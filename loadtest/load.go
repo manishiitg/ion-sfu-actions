@@ -63,6 +63,10 @@ func getFileByType(file string) string {
 		}
 	}
 
+	if filepath == "" {
+		filepath = "test"
+	}
+
 	return filepath
 }
 
@@ -141,31 +145,37 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 						producer = client.NewGSTProducer("screen", file)
 					}
 
+					// t, _ := c.Publish(producer.AudioTrack())
 					t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.AudioTrack(), webrtc.RTPTransceiverInit{
 						Direction: webrtc.RTPTransceiverDirectionSendonly,
 					})
-
+					// go func() {
+					// 	rtcpBuf := make([]byte, 1500)
+					// 	for {
+					// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+					// 			return
+					// 		}
+					// 	}
+					// }()
 					defer c.UnPublish(t)
+
 					t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.VideoTrack(), webrtc.RTPTransceiverInit{
 						Direction: webrtc.RTPTransceiverDirectionSendonly,
 					})
+					// t2, _ := c.Publish(producer.VideoTrack())
 					defer c.UnPublish(t2)
 
 					// this is not needed as we are using onTrack already
 					// go func() {
 					// 	rtcpBuf := make([]byte, 1500)
 					// 	for {
-					// 		if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
-					// 			log.Errorf("videoSender rtcp error", err)
+					// 		if _, _, rtcpErr := t2.Sender().Read(rtcpBuf); rtcpErr != nil {
 					// 			return
 					// 		}
 					// 	}
 					// }()
 
-					producer.Start()
-					defer producer.Stop()
-
-					time.Sleep(5 * time.Millisecond)
+					// time.Sleep(5 * time.Millisecond)
 					c.OnNegotiationNeeded()
 
 					go func() {
@@ -184,6 +194,13 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 								log.Infof(info)
 							}
 						}
+					}()
+
+					producer.Start()
+					defer producer.Stop()
+
+					defer func() {
+						log.Infof("closing tracks")
 					}()
 
 					log.Infof("tracks published")
@@ -207,68 +224,68 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 				defer e.DelClient(c)
 				c.Simulcast(simulcast)
 				util.GetEngineStats(e, cancel)
-			case "pub":
-				cid := fmt.Sprintf("%s_pub_%d_%s", session, i, cuid.New())
-				log.Errorf("AddClient session=%v clientid=%v addr=%v", session, cid, sfu_host)
-				c, err := sdk.NewClient(e, addr, cid)
-				if err != nil {
-					log.Errorf("%v", err)
-					break
-				}
-				config := sdk.NewJoinConfig().SetNoSubscribe()
-				c.Join(session, config)
-				defer e.DelClient(c)
-				c.Simulcast(simulcast)
-				if !strings.Contains(file, ".webm") {
+			// case "pub":
+			// 	cid := fmt.Sprintf("%s_pub_%d_%s", session, i, cuid.New())
+			// 	log.Errorf("AddClient session=%v clientid=%v addr=%v", session, cid, sfu_host)
+			// 	c, err := sdk.NewClient(e, addr, cid)
+			// 	if err != nil {
+			// 		log.Errorf("%v", err)
+			// 		break
+			// 	}
+			// 	config := sdk.NewJoinConfig().SetNoSubscribe()
+			// 	c.Join(session, config)
+			// 	defer e.DelClient(c)
+			// 	c.Simulcast(simulcast)
+			// 	if !strings.Contains(file, ".webm") {
 
-					c.Join(new_session, nil)
-					defer e.DelClient(c)
-					var producer *client.GSTProducer
-					log.Infof("starting new gst producer %v", file)
-					if file == "test" {
-						producer = client.NewGSTProducer("video", "")
-					} else {
-						producer = client.NewGSTProducer("screen", file)
-					}
+			// 		c.Join(new_session, nil)
+			// 		defer e.DelClient(c)
+			// 		var producer *client.GSTProducer
+			// 		log.Infof("starting new gst producer %v", file)
+			// 		if file == "test" {
+			// 			producer = client.NewGSTProducer("video", "")
+			// 		} else {
+			// 			producer = client.NewGSTProducer("screen", file)
+			// 		}
 
-					t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.AudioTrack(), webrtc.RTPTransceiverInit{
-						Direction: webrtc.RTPTransceiverDirectionSendonly,
-					})
+			// 		t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.AudioTrack(), webrtc.RTPTransceiverInit{
+			// 			Direction: webrtc.RTPTransceiverDirectionSendonly,
+			// 		})
 
-					defer c.UnPublish(t)
-					t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.VideoTrack(), webrtc.RTPTransceiverInit{
-						Direction: webrtc.RTPTransceiverDirectionSendonly,
-					})
-					defer c.UnPublish(t2)
+			// 		defer c.UnPublish(t)
+			// 		t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(producer.VideoTrack(), webrtc.RTPTransceiverInit{
+			// 			Direction: webrtc.RTPTransceiverDirectionSendonly,
+			// 		})
+			// 		defer c.UnPublish(t2)
 
-					producer.Start()
-					defer producer.Stop()
+			// 		producer.Start()
+			// 		defer producer.Stop()
 
-					time.Sleep(5 * time.Millisecond)
-					c.OnNegotiationNeeded()
+			// 		time.Sleep(5 * time.Millisecond)
+			// 		c.OnNegotiationNeeded()
 
-					go func() {
-						ticker := time.NewTicker(3 * time.Second)
-						defer ticker.Stop()
-						for {
-							select {
-							case <-cancel:
-								return
-							case <-ticker.C:
-								clients, totalRecvBW, _ := e.GetStat(3)
-								totalSendBW := producer.GetSendBandwidth(3)
-								info := fmt.Sprintf("Clients: %d\n", clients)
-								info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
-								info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
-								log.Infof(info)
-							}
-						}
-					}()
+			// 		go func() {
+			// 			ticker := time.NewTicker(3 * time.Second)
+			// 			defer ticker.Stop()
+			// 			for {
+			// 				select {
+			// 				case <-cancel:
+			// 					return
+			// 				case <-ticker.C:
+			// 					clients, totalRecvBW, _ := e.GetStat(3)
+			// 					totalSendBW := producer.GetSendBandwidth(3)
+			// 					info := fmt.Sprintf("Clients: %d\n", clients)
+			// 					info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
+			// 					info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
+			// 					log.Infof(info)
+			// 				}
+			// 			}
+			// 		}()
 
-				} else {
-					c.PublishWebm(file, video, audio)
-					util.GetEngineStats(e, cancel)
-				}
+			// 	} else {
+			// 		c.PublishWebm(file, video, audio)
+			// 		util.GetEngineStats(e, cancel)
+			// 	}
 			default:
 				log.Infof("invalid role! should be pubsub/sub")
 			}

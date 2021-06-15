@@ -232,7 +232,9 @@ func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.i
 		log.Infof("error writing sample %v", err)
 	} else {
 		log.Tracef("id=%v mime=%v kind=%v streamid=%v len=%v", track.ID(), track.Codec().MimeType, track.Kind(), track.StreamID(), int(bufferLen))
-		boundTrackStats[C.GoString(localTrackID)] += int(bufferLen)
+		if localTrackID != nil {
+			boundTrackStats[C.GoString(localTrackID)] += int(bufferLen)
+		}
 	}
 
 	C.free(buffer)

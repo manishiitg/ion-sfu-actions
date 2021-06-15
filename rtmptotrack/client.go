@@ -53,7 +53,6 @@ func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, ca
 		log.Errorf("action already running")
 	}
 	util.StartAction("rtmptotrack", session)
-	defer util.CloseAction()
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	wait := make(chan struct{})
 	if rtmpInput == "demo" {
@@ -113,6 +112,7 @@ func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, ca
 	select {
 	case <-cancel:
 		ctxCancel()
+		util.CloseAction()
 		log.Infof("closing run")
 		return
 	}

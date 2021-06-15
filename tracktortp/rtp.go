@@ -94,7 +94,6 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 		log.Errorf("action already running")
 	}
 	util.StartAction("tracktortp", session)
-	defer util.CloseAction()
 
 	for _, c := range udpConns {
 		defer func(conn net.PacketConn) {
@@ -121,12 +120,12 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 		})
 		if track.Kind() == webrtc.RTPCodecTypeAudio {
 			onceTrackAudio.Do(func() {
-				processTrack(track, receiver, cancel, udpConns, client)
+				go processTrack(track, receiver, cancel, udpConns, client)
 			})
 		}
 		if track.Kind() == webrtc.RTPCodecTypeVideo {
 			onceTrackVideo.Do(func() {
-				processTrack(track, receiver, cancel, udpConns, client)
+				go processTrack(track, receiver, cancel, udpConns, client)
 			})
 		}
 		isstarted = true
@@ -155,10 +154,13 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 			}
 		case <-cancel:
 			ctxCancel()
+			util.CloseAction()
 			log.Infof("closed!")
 			return
 		}
+
 	}
+	log.Infof("closing track to rtmp")
 }
 
 var rtpTrackMap = make(map[string]string)
@@ -255,7 +257,9 @@ func publishtortmp(ctx context.Context, streamURL string) error {
 	go func() {
 		scanner := bufio.NewScanner(ffmpegOut)
 		for scanner.Scan() {
-			fmt.Println(scanner.Text())
+			txt := scanner.Text()
+			fmt.Println(txt)
+			util.UpdateActionProgress(txt)
 			if ctx.Err() == context.Canceled {
 				log.Infof("context cancelled")
 				break
