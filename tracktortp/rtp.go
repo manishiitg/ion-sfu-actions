@@ -244,6 +244,12 @@ func processTrack(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, cance
 func publishtortmp(ctx context.Context, streamURL string) error {
 	// # ffmpeg -protocol_whitelist file,udp,rtp -i subscribe.sdp -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -ar 44100 -f flv rtmp://bom01.contribute.live-video.net/app/live_666332364_5791UvimKkDZW8edq8DAi4011wc4cR
 
+	// out, err := exec.Command("pwd").Output()
+	// if err != nil {
+	// 	log.Infof("err %v", err)
+	// }
+	// fmt.Printf("Output of cmd %s\n", out)
+
 	log.Infof("publish rtmp %v", streamURL)
 	args := "-protocol_whitelist file,udp,rtp -i ./tracktortp/subscribe.sdp -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -ar 44100 -f flv"
 	ffmpeg := exec.CommandContext(ctx, "ffmpeg", append(strings.Split(args, " "), streamURL)...)
