@@ -5,7 +5,7 @@ services:
     build:
         context : .
     image: xtechsample/actions
-    command: ["-port", ":3050", "-ipaddr" , "5.9.18.28" , "-saddr","http://5.9.18.28:4000/"] # "-eaddr", "5.9.18.28:2379",
+    command: ["server","--port", ":3050", "--ipaddr" , "5.9.18.28" , "--saddr","http://5.9.18.28:4000/"] # "-eaddr", "5.9.18.28:2379",
     restart: always
     network_mode: host
 

@@ -32,5 +32,5 @@ COPY --from=build /actions /usr/local/bin/actions
 
 # COPY config.toml /configs/sfu.toml
 
-ENTRYPOINT ["/usr/local/bin/actions"]
+# ENTRYPOINT ["/usr/local/bin/actions","server"]
 CMD [""]
