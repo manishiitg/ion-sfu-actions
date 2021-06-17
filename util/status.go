@@ -11,6 +11,7 @@ type ActionStatus struct {
 	Err        error  `json:"err"`
 	ActionType string `json:"tasktype"`
 	Progress   string `json:"progress"`
+	Meta       string `json:"meta"`
 }
 
 var actionUpdate = ActionStatus{}
@@ -26,6 +27,11 @@ func StartAction(atype string, session string) {
 	actionUpdate.Session = session
 	actionUpdate.Err = nil
 	actionUpdate.ActionType = atype
+}
+func UpdateMeta(meta string) {
+	actionUpdate.Lock()
+	defer actionUpdate.Unlock()
+	actionUpdate.Meta = meta
 }
 func ErrorAction(err error) {
 	actionUpdate.Lock()

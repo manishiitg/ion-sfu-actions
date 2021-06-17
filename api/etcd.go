@@ -147,7 +147,7 @@ func (e *etcdCoordinator) notifyAlive() {
 				e.lease = nil
 			}
 		}
-		// log.Infof("Host Alive  leaseKeepAlive %v", <-leaseKeepAlive)
+		log.Infof("Host Alive  leaseKeepAlive %v", <-leaseKeepAlive)
 	} else {
 		go e.createHostLease()
 	}

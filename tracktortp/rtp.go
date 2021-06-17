@@ -94,6 +94,7 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 		log.Errorf("action already running")
 	}
 	util.StartAction("tracktortp", session)
+	util.UpdateMeta(rtmp)
 
 	for _, c := range udpConns {
 		defer func(conn net.PacketConn) {
@@ -158,7 +159,6 @@ func run(e *sdk.Engine, client *sdk.Client, rtmp string, session string, cancel 
 			log.Infof("closed!")
 			return
 		}
-
 	}
 	log.Infof("closing track to rtmp")
 }

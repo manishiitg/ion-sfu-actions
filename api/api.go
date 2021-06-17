@@ -87,17 +87,17 @@ func (e *etcdCoordinator) InitApi(port string) error {
 	{
 
 		streamr.GET("/live/:session/:rtmp", func(c *gin.Context) {
-			if e.engine != nil {
-				c.String(http.StatusOK, "Engine Already Used!")
-				return
-			}
+			// if e.engine != nil {
+			// 	c.String(http.StatusOK, "Engine Already Used!")
+			// 	return
+			// }
 			startRealStream(c, e)
 		})
 		streamr.GET("/demo/:session", func(c *gin.Context) {
-			if e.engine != nil {
-				c.String(http.StatusOK, "Engine Already Used!")
-				return
-			}
+			// if e.engine != nil {
+			// 	c.String(http.StatusOK, "Engine Already Used!")
+			// 	return
+			// }
 			startTestStream(c, e)
 		})
 		streamr.GET("/stop", func(c *gin.Context) {
@@ -108,10 +108,10 @@ func (e *etcdCoordinator) InitApi(port string) error {
 	diskr := r.Group("disk")
 	{
 		diskr.GET("/:session", func(c *gin.Context) {
-			if e.engine != nil {
-				c.String(http.StatusOK, "Engine Already Used!")
-				return
-			}
+			// if e.engine != nil {
+			// 	c.String(http.StatusOK, "Engine Already Used!")
+			// 	return
+			// }
 			saveToDisk(c, e)
 		})
 		diskr.GET("/stop", func(c *gin.Context) {

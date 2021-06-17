@@ -6,6 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	tracktortp "github.com/manishiitg/actions/tracktortp"
+	log "github.com/pion/ion-log"
 )
 
 func startRealStream(c *gin.Context, e *etcdCoordinator) {
@@ -16,6 +17,7 @@ func startRealStream(c *gin.Context, e *etcdCoordinator) {
 	rtmp, _ := b64.StdEncoding.DecodeString(c.Param("rtmp"))
 	engine, err := tracktortp.InitApi(e.serverIp, session, string(rtmp), cancel)
 	if err != nil {
+		log.Infof("error in init api %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		close(e.streamActionCancel)
 		return
