@@ -154,3 +154,67 @@ func GetEngineStats(e *sdk.Engine, cancel <-chan struct{}) {
 		}
 	}()
 }
+
+type profile struct {
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+type message struct {
+	Action     string  `json:"action"`
+	Id         string  `json:"id"`
+	Data       profile `json:"data"`
+	Streamid   string  `json:"streamid"`
+	IsHost     bool    `json:"ishost"`
+	CanPublish bool    `json:"canPublish"`
+}
+
+func HandleDataChannel(c *sdk.Client, name string, i int, cid string) {
+	//specific to my frontend app not needed as such
+	c.OnDataChannel = func(dc *webrtc.DataChannel) {
+
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var m message
+			json.Unmarshal(msg.Data, &m)
+			// log.Infof("m %v", m)
+
+			t := c.GetPubTransport().GetPeerConnection().GetSenders()
+			streamid := t[0].Track().StreamID()
+
+			if m.Action == "profile" {
+				p := profile{
+					Name:  fmt.Sprintf("%v-%v", name, i),
+					Email: fmt.Sprintf("%v-%v@gmail.com", i),
+				}
+				m := message{
+					Action:     "reply-profile",
+					Data:       p,
+					Id:         cid,
+					Streamid:   streamid,
+					IsHost:     false,
+					CanPublish: true,
+				}
+				b, _ := json.Marshal(m)
+				dc.Send(b)
+			}
+		})
+		dc.OnOpen(func() {
+			// log.Infof("dc open open")
+			t := c.GetPubTransport().GetPeerConnection().GetSenders()
+			streamid := t[0].Track().StreamID()
+			p := profile{
+				Name:  fmt.Sprintf("%v-%v", name, i),
+				Email: fmt.Sprintf("%v-%v@gmail.com", name, i),
+			}
+			m := message{
+				Action:     "profile",
+				Data:       p,
+				Id:         cid,
+				Streamid:   streamid,
+				IsHost:     false,
+				CanPublish: true,
+			}
+			b, _ := json.Marshal(m)
+			dc.Send(b)
+		})
+	}
+}

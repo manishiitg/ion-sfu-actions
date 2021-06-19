@@ -1,7 +1,6 @@
 package loadtest
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -94,22 +93,11 @@ func Init(file, gaddr, session string, total, cycle, duration int, role string, 
 	return e
 }
 
-type profile struct {
-	Name  string `json:"name"`
-	Email string `json:"email"`
-}
-type message struct {
-	Action     string  `json:"action"`
-	Id         string  `json:"id"`
-	Data       profile `json:"data"`
-	Streamid   string  `json:"streamid"`
-	IsHost     bool    `json:"ishost"`
-	CanPublish bool    `json:"canPublish"`
-}
-
 func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle int, video, audio bool, simulcast string, create_room int, capacity int, cancel chan struct{}) *sdk.Engine {
 	log.Infof("run session=%v file=%v role=%v total=%v duration=%v cycle=%v video=%v audio=%v simulcast=%v\n", session, file, role, total, duration, cycle, audio, video, simulcast)
-	timer := time.NewTimer(time.Duration(duration) * time.Second)
+	timer := time.AfterFunc(time.Duration(duration)*time.Second, func() {
+		close(cancel)
+	})
 
 	if util.IsActionRunning() {
 		log.Errorf("action already running")
@@ -148,7 +136,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 					log.Errorf("%v", err)
 					break
 				}
-				handleDataChannel(c, i, cid)
+				util.HandleDataChannel(c, "loadtest", i, cid)
 
 				if !strings.Contains(file, ".webm") {
 					//this stopped working. need to debug
@@ -217,7 +205,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 					log.Errorf("%v", err)
 					break
 				}
-				handleDataChannel(c, i, cid)
+				util.HandleDataChannel(c, "loadtest", i, cid)
 				// config := sdk.NewJoinConfig().SetNoPublish() //TODO bug raise wait for fix
 				c.Join(new_session, nil)
 				defer e.DelClient(c)
@@ -228,11 +216,9 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 			}
 
 			select {
-			case <-timer.C:
-				util.CloseAction()
-				return
 			case <-cancel:
 				util.CloseAction()
+				timer.Stop()
 				log.Infof("cancel called on load test")
 				return
 			}
@@ -240,55 +226,4 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 		time.Sleep(time.Millisecond * time.Duration(cycle))
 	}
 	return e
-}
-
-func handleDataChannel(c *sdk.Client, i int, cid string) {
-	//specific to my frontend app not needed as such
-	c.OnDataChannel = func(dc *webrtc.DataChannel) {
-
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var m message
-			json.Unmarshal(msg.Data, &m)
-			// log.Infof("m %v", m)
-
-			t := c.GetPubTransport().GetPeerConnection().GetSenders()
-			streamid := t[0].Track().StreamID()
-
-			if m.Action == "profile" {
-				p := profile{
-					Name:  fmt.Sprintf("loadtest-%v", i),
-					Email: fmt.Sprintf("loadtest-%v@gmail.com", i),
-				}
-				m := message{
-					Action:     "reply-profile",
-					Data:       p,
-					Id:         cid,
-					Streamid:   streamid,
-					IsHost:     false,
-					CanPublish: false,
-				}
-				b, _ := json.Marshal(m)
-				dc.Send(b)
-			}
-		})
-		dc.OnOpen(func() {
-			// log.Infof("dc open open")
-			t := c.GetPubTransport().GetPeerConnection().GetSenders()
-			streamid := t[0].Track().StreamID()
-			p := profile{
-				Name:  fmt.Sprintf("loadtest-%v", i),
-				Email: fmt.Sprintf("loadtest-%v@gmail.com", i),
-			}
-			m := message{
-				Action:     "profile",
-				Data:       p,
-				Id:         cid,
-				Streamid:   streamid,
-				IsHost:     false,
-				CanPublish: false,
-			}
-			b, _ := json.Marshal(m)
-			dc.Send(b)
-		})
-	}
 }

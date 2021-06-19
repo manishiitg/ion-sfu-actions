@@ -44,11 +44,12 @@ func Init(session string, addr string, rtmpInput string, cancel <-chan struct{})
 	if err != nil {
 		log.Errorf("err=%v sfu host %v", err, sfu_host)
 	}
-	go run(e, client, session, rtmpInput, cancel)
+	go run(e, client, session, rtmpInput, cid, cancel)
 	return e
 }
 
-func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, cancel <-chan struct{}) {
+func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, cid string, cancel <-chan struct{}) {
+	log.Infof("run session=%v rtmpInput=%v", session, rtmpInput)
 	if util.IsActionRunning() {
 		log.Errorf("action already running")
 	}
@@ -105,6 +106,8 @@ func run(e *sdk.Engine, client *sdk.Client, session string, rtmpInput string, ca
 	defer client.UnPublish(t2)
 	time.Sleep(5 * time.Millisecond)
 	client.OnNegotiationNeeded()
+
+	util.HandleDataChannel(client, "rtmptotrack", 0, cid)
 
 	go rtpToTrack(client, audioTrack, &codecs.OpusPacket{}, 48000, 3006, cancel)
 	go rtpToTrack(client, videoTrack, &codecs.VP8Packet{}, 90000, 3004, cancel)
