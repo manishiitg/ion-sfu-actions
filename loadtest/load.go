@@ -17,6 +17,7 @@ import (
 
 func getFileByType(file string) string {
 	var filepath string
+	log.Infof("got file type %v", file)
 	if file == "360p" {
 		filepath = "/var/tmp/Big_Buck_Bunny_4K.webm.360p.webm"
 		if _, err := os.Stat(filepath); os.IsNotExist(err) {
@@ -75,8 +76,7 @@ func InitLoadTestApi(serverIp string, session string, clients int, role string, 
 	if clients == 0 {
 		clients = 1
 	}
-	filepath := getFileByType(file)
-	return Init(filepath, serverIp, session, clients, cycle, 60*60, role, rooms, capacity, cancel)
+	return Init(file, serverIp, session, clients, cycle, 60*5, role, rooms, capacity, cancel)
 }
 
 func Init(file, gaddr, session string, total, cycle, duration int, role string, create_room int, capacity int, cancel chan struct{}) *sdk.Engine {
@@ -115,7 +115,6 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 		log.Errorf("action already running")
 	}
 	util.StartAction("loadtest", session)
-	defer util.CloseAction()
 	util.UpdateMeta(fmt.Sprintf("%v", total))
 	for i := 0; i < total; i++ {
 		go func(i int, session string) {
@@ -201,6 +200,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 					}()
 
 					log.Infof("tracks published")
+
 				} else {
 					c.Join(new_session, nil)
 					defer e.DelClient(c)
@@ -229,8 +229,10 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 
 			select {
 			case <-timer.C:
+				util.CloseAction()
 				return
 			case <-cancel:
+				util.CloseAction()
 				log.Infof("cancel called on load test")
 				return
 			}

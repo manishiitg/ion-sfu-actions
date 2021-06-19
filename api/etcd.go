@@ -18,7 +18,7 @@ import (
 )
 
 const LEASE_TIMEOUT = 5
-const LEASE_RENEW_TIMEOUT = 1 //lease renuew timeout should be less then lese timeout always
+const LEASE_RENEW_TIMEOUT = 3 //lease renuew timeout should be less then lese timeout always
 // 1sec is better as we get to know of host load every 1sec
 
 type etcdCoordinator struct {
@@ -120,22 +120,18 @@ func (e *etcdCoordinator) notifyAlive() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.lease != nil {
-		leaseKeepAlive, err := e.client.KeepAlive(context.Background(), e.lease.ID)
+		leaseKeepAlive, err := e.client.KeepAliveOnce(context.Background(), e.lease.ID)
 		if err != nil {
 			log.Errorf("error activating keepAlive for lease", err, "leaseID", e.lease.ID)
 		}
 		log.Debugf("leaseKeepAlive err %v", leaseKeepAlive)
 
 		// === === see here
-		go func() {
-			if r := recover(); r != nil {
-				for {
-					<-leaseKeepAlive
-				}
-			} else {
-				return
-			}
-		}()
+		// go func() {
+		// 	for {
+		// 		<-leaseKeepAlive
+		// 	}
+		// }()
 		load := e.getHostLoad()
 		b, _ := json.Marshal(load)
 		// log.Info("host load %v", string(b))

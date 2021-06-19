@@ -149,6 +149,7 @@ func GetEngineStats(e *sdk.Engine, cancel <-chan struct{}) {
 				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
 				info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
 				log.Infof(info)
+				UpdateActionProgress(info)
 			}
 		}
 	}()

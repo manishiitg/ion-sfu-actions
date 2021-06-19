@@ -55,7 +55,7 @@ func startLoadTest(c *gin.Context, e *etcdCoordinator) {
 
 	file := c.Query("file")
 	if len(file) == 0 {
-		file = "default"
+		file = "480p"
 	} else {
 		file = c.Query("file")
 	}
