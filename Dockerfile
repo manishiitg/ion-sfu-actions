@@ -35,6 +35,11 @@ COPY --from=build /actions /usr/local/bin/actions
 RUN mkdir -p /go/src/github.com/manishiitg/actions/tracktortp/
 COPY ./tracktortp/subscribe.sdp /go/src/github.com/manishiitg/actions/tracktortp/
 
+RUN mkdir -p /go/src/github.com/manishiitg/actions/cgfs
+RUN mkdir -p /go/src/github.com/manishiitg/actions/cgfs/gcloud
+
+COPY ./cfgs/gcloud/steady-datum-291915-9c9286662fbf.json /go/src/github.com/manishiitg/actions/cfgs/gcloud/steady-datum-291915-9c9286662fbf.json
+
 RUN apk add \
     gstreamer \
     gstreamer-dev \

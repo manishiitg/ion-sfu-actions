@@ -128,8 +128,12 @@ func (e *etcdCoordinator) notifyAlive() {
 
 		// === === see here
 		go func() {
-			for {
-				<-leaseKeepAlive
+			if r := recover(); r != nil {
+				for {
+					<-leaseKeepAlive
+				}
+			} else {
+				return
 			}
 		}()
 		load := e.getHostLoad()
@@ -147,7 +151,7 @@ func (e *etcdCoordinator) notifyAlive() {
 				e.lease = nil
 			}
 		}
-		log.Infof("Host Alive  leaseKeepAlive %v", <-leaseKeepAlive)
+		// log.Infof("Host Alive  leaseKeepAlive %v", <-leaseKeepAlive)
 	} else {
 		go e.createHostLease()
 	}

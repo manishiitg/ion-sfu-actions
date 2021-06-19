@@ -2,9 +2,11 @@ package tracktodisk
 
 import (
 	"context"
+	"fmt"
 	"os"
 
 	"cloud.google.com/go/storage"
+	util "github.com/manishiitg/actions/util"
 	avp "github.com/pion/ion-avp/pkg"
 	"github.com/pion/ion-avp/pkg/elements"
 	log "github.com/pion/ion-log"
@@ -13,8 +15,9 @@ import (
 // FileWriter instance
 type FileWriter struct {
 	elements.Leaf
-	wr     *storage.Writer
-	client *storage.Client
+	wr         *storage.Writer
+	client     *storage.Client
+	totalBtyes int
 }
 
 // NewFileWriter instance
@@ -47,7 +50,10 @@ func NewCloudFileWriter(path string) *FileWriter {
 }
 
 func (w *FileWriter) Write(sample *avp.Sample) error {
-	_, err := w.wr.Write(sample.Payload.([]byte))
+	b := sample.Payload.([]byte)
+	w.totalBtyes = w.totalBtyes + len(b)
+	util.UpdateActionProgress(fmt.Sprintf("%v", w.totalBtyes))
+	_, err := w.wr.Write(b)
 	if err != nil {
 		log.Errorf("file write error %v", err)
 	}
