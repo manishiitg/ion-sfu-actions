@@ -39,6 +39,9 @@ func (e *etcdCoordinator) InitApi(port string) error {
 			if status.ActionType == "tracktortp" {
 				close(e.streamActionCancel)
 			}
+			if status.ActionType == "mirrorsfu" {
+				close(e.mirrorActionCancel)
+			}
 			e.engine = nil
 			util.CloseAction()
 		}
@@ -57,14 +60,6 @@ func (e *etcdCoordinator) InitApi(port string) error {
 			}
 			startMirror(c, e)
 		})
-		mirrorr.GET("/syncsfu/:session1/:session2/:addr1/:addr2", func(c *gin.Context) {
-			if e.engine != nil {
-				c.String(http.StatusOK, "Engine Already Used!")
-				return
-			}
-			startMirrorWithAddr(c, e)
-		})
-
 	}
 	loadtestr := r.Group("loadtest")
 	{

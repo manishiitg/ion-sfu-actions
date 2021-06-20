@@ -11,9 +11,10 @@ func stopMirror(c *gin.Context, e *etcdCoordinator) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.engine != nil {
-		close(e.mirrorActionCancel)
+
 		e.engine = nil
 	}
+	close(e.mirrorActionCancel)
 	c.Status(http.StatusOK)
 }
 func startMirror(c *gin.Context, e *etcdCoordinator) {
@@ -29,13 +30,4 @@ func startMirror(c *gin.Context, e *etcdCoordinator) {
 		e.mirrorActionCancel = cancel
 		c.Status(http.StatusOK)
 	}
-}
-
-func startMirrorWithAddr(c *gin.Context, e *etcdCoordinator) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	cancel := make(chan struct{})
-	go mirrorsfu.InitWithAddress(c.Param("session1"), c.Param("session2"), e.serverIp, cancel)
-	e.mirrorActionCancel = cancel
-	c.Status(http.StatusOK)
 }

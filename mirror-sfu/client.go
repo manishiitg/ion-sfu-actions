@@ -37,7 +37,6 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		log.Errorf("action already running")
 	}
 	util.StartAction("mirrorsfu", session)
-	//doens't work properly not sure why
 	e := util.GetEngine()
 
 	notify := make(chan string, 1)
@@ -73,10 +72,12 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	}
 
 	c1.OnDataChannel = func(dc *webrtc.DataChannel) {
-		go dctodc(dc, c2)
+		log.Infof("c1 on data channel")
+		go dctodc(dc, c2, c1)
 	}
 	c2.OnDataChannel = func(dc *webrtc.DataChannel) {
-		go dctodc(dc, c1)
+		log.Infof("c2 on data channel %v", dc.Label())
+		go dctodc(dc, c1, c2)
 	}
 	var onceTrackAudio sync.Once
 	var onceTrackVideo sync.Once
@@ -84,24 +85,31 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	audioBuilder := samplebuilder.New(10, &codecs.OpusPacket{}, 48000)
 	videoBuilder := samplebuilder.New(10, &codecs.VP8Packet{}, 90000)
 
+	wg := new(sync.WaitGroup)
+	wg.Add(1) //only audio can mark this as done
 	c1.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
+		log.Infof("track %v", track.Kind())
 		if track.Kind() == webrtc.RTPCodecTypeAudio {
 			onceTrackAudio.Do(func() {
-				tracktotrack(track, receiver, c2, cancel, cid1, audioBuilder)
+				go tracktotrack(track, receiver, c2, cancel, cid1, audioBuilder)
 				go pliLoop(c1, track, 1000)
+				log.Infof("audio done")
+				wg.Done()
 			})
 		}
 		if track.Kind() == webrtc.RTPCodecTypeVideo {
 			onceTrackVideo.Do(func() {
+				wg.Wait()
 				go tracktotrack(track, receiver, c2, cancel, cid1, videoBuilder)
 				go pliLoop(c1, track, 1000)
+				time.AfterFunc(time.Second*1, func() {
+					util.SendData(c2, "mirror", 0, cid2, true)
+				})
+				log.Infof("video done")
 			})
 		}
 
 	}
-	// c2.OnTrack = func(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver) {
-	// 	go tracktotrack(track, receiver, c1, done, cid2)
-	// }
 
 	err = c1.Join(session, nil)
 	defer c1.Close()
@@ -111,6 +119,7 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 	}
 	log.Infof("c1 joined session %v", session)
 
+	util.UpdateMeta(session2)
 	err = c2.Join(session2, nil)
 	defer c2.Close()
 	if err != nil {
@@ -134,7 +143,7 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", recvByte)
 				// info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
 				util.UpdateActionProgress(info)
-				log.Infof(info)
+				// log.Infof(info)
 				recvByte = 0
 			}
 		}
@@ -148,17 +157,17 @@ func InitWithAddress(session, session2, addr string, cancel chan struct{}) {
 		select {
 		case sig := <-sigs:
 			log.Infof("Got signal, beginning shutdown", "signal", sig)
-			close(cancel)
 			time.AfterFunc(time.Second, func() {
 				os.Exit(1)
 			})
+			close(cancel)
 		case <-cancel:
 			util.CloseAction()
 			log.Infof("mirror finished session %v addr1 %v session2 %v addr2 %v", session, addr, session2)
 			return
 		case <-ticker.C:
 			no1 := len(tracks)
-			log.Infof("session tracker c1:%v no1:%v", cid1, no1)
+			// log.Infof("session tracker c1:%v no1:%v", cid1, no1)
 			if no1 == 0 { // || no2 == 0
 				log.Infof("no tracks found closing")
 				close(cancel)
@@ -172,26 +181,30 @@ func Init(session, session2, addr string, cancel chan struct{}) {
 	InitWithAddress(session, session2, addr, cancel)
 }
 
-func dctodc(dc *webrtc.DataChannel, c2 *sdk.Client) {
-	log.Warnf("New DataChannel %s %d\n", dc.Label())
+func dctodc(dc *webrtc.DataChannel, cother *sdk.Client, cmine *sdk.Client) {
+	log.Infof("New DataChannel %v", dc.Label())
 	dcID := fmt.Sprintf("dc %v", dc.Label())
-	log.Warnf("DCID %v", dcID)
-	dc2, err := c2.CreateDataChannel(dc.Label())
+	log.Infof("DCID %v", dcID)
+	dc2, err := cother.CreateDataChannel(dc.Label() + "-mirror")
 	if err != nil {
+		log.Errorf("unable to create data channel %v", err)
 		return
 	}
 	dc.OnClose(func() {
+		log.Infof("data channel closed!")
 		dc2.Close()
 		return
 	})
+
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Warnf("Message from DataChannel %v %v", dc.Label(), string(msg.Data))
-		dc2.SendText(string(msg.Data))
+		log.Infof("Message from DataChannel %v %v", dc.Label(), string(msg.Data))
+		dc2.Send(msg.Data)
 	})
+
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// bi-directional data channels
-		log.Warnf("back msg %v", string(msg.Data))
-		dc.SendText(string(msg.Data))
+		log.Infof("back msg %v", string(msg.Data))
+		dc.Send(msg.Data)
 	})
 }
 

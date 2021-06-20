@@ -171,35 +171,49 @@ type message struct {
 func HandleDataChannel(c *sdk.Client, name string, i int, cid string) {
 	//specific to my frontend app not needed as such
 	c.OnDataChannel = func(dc *webrtc.DataChannel) {
+		HandleData(c, dc, name, i, cid)
+	}
+}
 
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var m message
-			json.Unmarshal(msg.Data, &m)
-			// log.Infof("m %v", m)
+func HandleProfileMsg(c *sdk.Client, dc *webrtc.DataChannel, msg webrtc.DataChannelMessage, name string, i int, cid string) {
+	var m message
+	json.Unmarshal(msg.Data, &m)
+	// log.Infof("m %v", m)
 
-			t := c.GetPubTransport().GetPeerConnection().GetSenders()
+	if m.Action == "profile" {
+		log.Infof("is profile message")
+		t := c.GetPubTransport().GetPeerConnection().GetSenders()
+		if len(t) > 0 {
 			streamid := t[0].Track().StreamID()
-
-			if m.Action == "profile" {
-				p := profile{
-					Name:  fmt.Sprintf("%v-%v", name, i),
-					Email: fmt.Sprintf("%v-%v@gmail.com", i),
-				}
-				m := message{
-					Action:     "reply-profile",
-					Data:       p,
-					Id:         cid,
-					Streamid:   streamid,
-					IsHost:     false,
-					CanPublish: true,
-				}
-				b, _ := json.Marshal(m)
-				dc.Send(b)
+			p := profile{
+				Name:  fmt.Sprintf("%v-%v", name, i),
+				Email: fmt.Sprintf("%v-%v@gmail.com", i),
 			}
-		})
-		dc.OnOpen(func() {
-			// log.Infof("dc open open")
-			t := c.GetPubTransport().GetPeerConnection().GetSenders()
+			m := message{
+				Action:     "reply-profile",
+				Data:       p,
+				Id:         cid,
+				Streamid:   streamid,
+				IsHost:     false,
+				CanPublish: true,
+			}
+			log.Infof("profile reply %v", m)
+			b, _ := json.Marshal(m)
+			dc.Send(b)
+		} else {
+			log.Infof("unable to handle profile msg")
+		}
+	}
+}
+
+func HandleData(c *sdk.Client, dc *webrtc.DataChannel, name string, i int, cid string) {
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		HandleProfileMsg(c, dc, msg, name, i, cid)
+	})
+	dc.OnOpen(func() {
+		// log.Infof("dc open open")
+		t := c.GetPubTransport().GetPeerConnection().GetSenders()
+		if len(t) > 0 {
 			streamid := t[0].Track().StreamID()
 			p := profile{
 				Name:  fmt.Sprintf("%v-%v", name, i),
@@ -215,6 +229,61 @@ func HandleDataChannel(c *sdk.Client, name string, i int, cid string) {
 			}
 			b, _ := json.Marshal(m)
 			dc.Send(b)
+		}
+	})
+}
+
+type flipmsg struct {
+	Flip      bool   `json:"flip"`
+	InputType string `json:"inputType"`
+	Id        string `json:"id"`
+	Streamid  string `json:"streamid"`
+}
+
+func SendFlip(dc *webrtc.DataChannel, id, streamid string) {
+	m := flipmsg{
+		Flip:      true,
+		InputType: "mirror",
+		Id:        id,
+		Streamid:  streamid,
+	}
+	b, _ := json.Marshal(m)
+	dc.Send(b)
+}
+
+func SendData(c *sdk.Client, name string, i int, cid string, sendflip bool) {
+
+	dc, _ := c.CreateDataChannel("data")
+	if dc.ReadyState().String() == "open" {
+		sendDataOpen(c, dc, name, i, cid, sendflip)
+	} else {
+		dc.OnOpen(func() {
+			sendDataOpen(c, dc, name, i, cid, sendflip)
 		})
+	}
+}
+func sendDataOpen(c *sdk.Client, dc *webrtc.DataChannel, name string, i int, cid string, sendflip bool) {
+	t := c.GetPubTransport().GetPeerConnection().GetSenders()
+	streamid := t[0].Track().StreamID()
+	p := profile{
+		Name:  fmt.Sprintf("%v-%v", name, i),
+		Email: fmt.Sprintf("%v-%v@gmail.com", name, i),
+	}
+	m := message{
+		Action:     "profile",
+		Data:       p,
+		Id:         cid,
+		Streamid:   streamid,
+		IsHost:     false,
+		CanPublish: true,
+	}
+	b, _ := json.Marshal(m)
+	dc.Send(b)
+	if sendflip {
+		SendFlip(dc, cid, streamid)
+		time.AfterFunc(time.Second*5, func() {
+			SendFlip(dc, cid, streamid)
+		})
+
 	}
 }
