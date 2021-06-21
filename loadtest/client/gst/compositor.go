@@ -32,7 +32,7 @@ type CompositorPipeline struct {
 func NewCompositorPipeline(extraPipelineStr string) *CompositorPipeline {
 	pipelineStr := `
 		compositor name=vmix background=black ! video/x-raw,width=1920,height=1080,framerate=30/1,format=UYVY ! queue ! tee name=vtee 
-			vtee. ! queue ! autovideosink sync=false 
+			vtee. ! queue ! glimagesink sync=false 
 		audiomixer name=amix ! queue ! tee name=atee 
 			atee. ! queue ! audioconvert ! autoaudiosink
 	` + extraPipelineStr

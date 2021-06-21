@@ -53,10 +53,9 @@ func getFileByType(file string) string {
 	if file == "h264" {
 		//TODO not working as of now need to debug
 		// load is there but doesn't play on browser. track should play on browser also
-		// issue is on browser side
-		filepath = "/var/tmp/Big_Buck_Bunny_720_10s_1MB.mp4"
+		filepath = "/var/tmp/Jellyfish_360_10s_1MB.mp4"
 		if _, err := os.Stat(filepath); os.IsNotExist(err) {
-			err := util.DownloadFile(filepath, "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4")
+			err := util.DownloadFile(filepath, "https://test-videos.co.uk/vids/jellyfish/mp4/h264/360/Jellyfish_360_10s_1MB.mp4")
 			if err != nil {
 				log.Infof("error downloading file %v", err)
 				filepath = "test"
@@ -139,6 +138,57 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 				util.HandleDataChannel(c, "loadtest", i, cid)
 
 				if !strings.Contains(file, ".webm") {
+
+					// if file == "test2" {
+
+					// 	audioSrc := "audiotestsrc"
+					// 	videoSrc := "videotestsrc"
+
+					// 	videoTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "video/vp8"}, "video", "pion2")
+					// 	if err != nil {
+					// 		panic(err)
+					// 	}
+
+					// 	// _, err = peerConnection.AddTrack(videoTrack)
+					// 	// if err != nil {
+					// 	// 	panic(err)
+					// 	// }
+
+					// 	audioTrack, err := webrtc.NewTrackLocalStaticSample(webrtc.RTPCodecCapability{MimeType: "audio/opus"}, "audio", "pion1")
+					// 	if err != nil {
+					// 		panic(err)
+					// 	}
+					// 	// _, err = peerConnection.AddTrack(audioTrack)
+					// 	// if err != nil {
+					// 	// 	panic(err)
+					// 	// }
+
+					// 	// client join a session
+					// 	c.Join(new_session, nil)
+					// 	defer e.DelClient(c)
+
+					// 	t, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(audioTrack, webrtc.RTPTransceiverInit{
+					// 		Direction: webrtc.RTPTransceiverDirectionSendonly,
+					// 	})
+					// 	defer c.UnPublish(t)
+
+					// 	t2, _ := c.GetPubTransport().GetPeerConnection().AddTransceiverFromTrack(videoTrack, webrtc.RTPTransceiverInit{
+					// 		Direction: webrtc.RTPTransceiverDirectionSendonly,
+					// 	})
+					// 	defer c.UnPublish(t2)
+					// 	c.OnNegotiationNeeded()
+
+					// 	if err != nil {
+					// 		log.Errorf("join err=%v", err)
+					// 		panic(err)
+					// 	}
+
+					// 	// Start pushing buffers on these tracks
+					// 	gstreamergst.CreatePipeline("opus", []*webrtc.TrackLocalStaticSample{audioTrack}, audioSrc).Start()
+					// 	gstreamergst.CreatePipeline("vp8", []*webrtc.TrackLocalStaticSample{videoTrack}, videoSrc).Start()
+
+					// } else {
+
 					//this stopped working. need to debug
 					//i.e video is not showing on webapp
 					c.Join(new_session, nil)
@@ -163,6 +213,26 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 					c.OnNegotiationNeeded()
 
 					go func() {
+						rtcpBuf := make([]byte, 1500)
+						for {
+							if _, _, rtcpErr := t2.Sender().Read(rtcpBuf); rtcpErr != nil {
+								log.Infof("videoSender rtcp error %v", err)
+								return
+							}
+						}
+					}()
+
+					go func() {
+						rtcpBuf := make([]byte, 1500)
+						for {
+							if _, _, rtcpErr := t.Sender().Read(rtcpBuf); rtcpErr != nil {
+								log.Infof("audioSender rtcp error %v", err)
+								return
+							}
+						}
+					}()
+
+					go func() {
 						ticker := time.NewTicker(3 * time.Second)
 						defer ticker.Stop()
 						for {
@@ -180,7 +250,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 						}
 					}()
 
-					producer.Start()
+					go producer.Start()
 					defer producer.Stop()
 
 					defer func() {
@@ -188,6 +258,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 					}()
 
 					log.Infof("tracks published")
+					// }
 
 				} else {
 					c.Join(new_session, nil)

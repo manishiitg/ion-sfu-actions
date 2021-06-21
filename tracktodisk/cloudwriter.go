@@ -43,6 +43,7 @@ func NewCloudFileWriter(path string) *FileWriter {
 		log.Errorf("Bucket(%v).Create: %v", bucketName, err)
 	}
 
+	util.UpdateMeta(bucketName + "/" + path)
 	w := bucket.Object(path).NewWriter(ctx)
 	fw.wr = w
 	fw.client = client

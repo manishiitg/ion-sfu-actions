@@ -148,12 +148,12 @@ func tracktodisk(track *webrtc.TrackRemote, receiver *webrtc.RTPReceiver, saver 
 	maxTimeLate := time.Millisecond * time.Duration(0)
 	builder := avp.MustBuilder(avp.NewBuilder(track, maxPacketsLate, avp.WithMaxLateTime(maxTimeLate)))
 
-	if track.Kind() == webrtc.RTPCodecTypeVideo {
-		err := client.GetSubTransport().GetPeerConnection().WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{SenderSSRC: uint32(track.SSRC()), MediaSSRC: uint32(track.SSRC())}})
-		if err != nil {
-			log.Errorf("error writing pli %s", err)
-		}
+	// if track.Kind() == webrtc.RTPCodecTypeVideo {
+	err := client.GetSubTransport().GetPeerConnection().WriteRTCP([]rtcp.Packet{&rtcp.PictureLossIndication{SenderSSRC: uint32(track.SSRC()), MediaSSRC: uint32(track.SSRC())}})
+	if err != nil {
+		log.Errorf("error writing pli %s", err)
 	}
+	// }
 	diskTrackMap[track.ID()] = track.Kind().String()
 	builder.AttachElement(saver)
 	go pliLoop(client, track, 1000)
