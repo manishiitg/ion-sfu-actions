@@ -52,7 +52,7 @@ func serverMain(cmd *cobra.Command, args []string) error {
 
 	e, err := actions.InitEtcd(eaddr, ipaddr, port, saddr)
 	if err != nil {
-		log.Errorf("unable to connect to etd %v", err)
+		log.Errorf("unable to connect to etd %v with connection ip %v", err, eaddr)
 		return err
 	}
 	err = e.InitApi(port)
