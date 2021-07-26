@@ -240,7 +240,7 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 							case <-cancel:
 								return
 							case <-ticker.C:
-								clients, totalRecvBW, _ := e.GetStat(3)
+								clients, totalRecvBW, _ := e.GetStat()
 								totalSendBW := producer.GetSendBandwidth(3)
 								info := fmt.Sprintf("Clients: %d\n", clients)
 								info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)

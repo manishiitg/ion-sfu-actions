@@ -80,7 +80,7 @@ func startLoadTest(c *gin.Context, e *etcdCoordinator) {
 
 func stats(c *gin.Context, e *etcdCoordinator) {
 	if e.engine != nil {
-		clients, totalRecvBW, totalSendBW := e.engine.GetStat(3)
+		clients, totalRecvBW, totalSendBW := e.engine.GetStat()
 		e.getHostLoad()
 		c.JSON(http.StatusOK, gin.H{
 			"clients":     clients,
