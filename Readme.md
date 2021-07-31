@@ -13,7 +13,6 @@ This is code sample of some actions to be performed with ion-sfu using apis and 
 
 This is not ready for production at all right now, rather its more experimental basis
 
-
 I am using a slightly modified version ion-sdk-go https://github.com/manishiitg/ion-sdk-go 
 
 Testing Videos

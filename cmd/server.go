@@ -43,7 +43,7 @@ func serverMain(cmd *cobra.Command, args []string) error {
 	if len(ipaddr) == 0 {
 		ipaddr = ip.GetIP()
 	}
-	if len(eaddr) == 0 || len(ipaddr) == 0 || len(port) == 0 || len(saddr) == 0 {
+	if len(eaddr) == 0 || len(port) == 0 || len(saddr) == 0 {
 		log.Infof("ipaddr %v, eaddr %v, port %v , saddr %v all requried", ipaddr, eaddr, port, saddr)
 		os.Exit(-1)
 	}
