@@ -20,7 +20,9 @@ var rtmpCmd = &cobra.Command{
 var rtmpInput string
 
 func init() {
-	streamCmd.PersistentFlags().StringVarP(&rtmpInput, "irtmp", "", "demo", "RTMP URL TO read From")
+	streamCmd.PersistentFlags().StringVarP(&rtmpInput, "irtmp", "", "rtmp://0.0.0.0:1935/live/zoom", "RTMP URL TO read From")
+	//rtmp://0.0.0.0:1935/live/zoom
+	//rtmp://135.181.135.202:1935/live
 	rootCmd.AddCommand(rtmpCmd)
 }
 func loadrtmp(cmd *cobra.Command, args []string) error {

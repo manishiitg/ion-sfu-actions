@@ -60,3 +60,10 @@ GStreamer install ubuntu 20.10
 
 apt-get install libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev libgstreamer-plugins-bad1.0-dev gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav gstreamer1.0-tools gstreamer1.0-x gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-qt5 gstreamer1.0-pulseaudio
 
+
+
+=======
+Zoom
+
+For zoom to rtmp, we will first get a rtmp push url i.e get key via the rtmp/getkey api for a room name.
+Once we have the rtmp push we can put that url in zoom. zoom will start to push rtmp to our url and we can them publish that to our call

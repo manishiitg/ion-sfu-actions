@@ -8,6 +8,15 @@ import (
 	"github.com/manishiitg/actions/rtmptotrack"
 )
 
+func getKeyFromRtmp(c *gin.Context) {
+	key, err := rtmptotrack.GetStreamKey(c.Param("room"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	} else {
+		c.String(http.StatusOK, key)
+	}
+}
+
 func startActualRtmp(c *gin.Context, e *etcdCoordinator) {
 	e.mu.Lock()
 	defer e.mu.Unlock()

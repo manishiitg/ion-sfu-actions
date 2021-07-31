@@ -188,10 +188,10 @@ func processRTCP(rtpSender *webrtc.RTPTransceiver) {
 }
 
 func streamMp4ToRtmp(ctx context.Context, wait chan struct{}) error {
-	// ffmpeg -re -stream_loop 400 -i /var/tmp/big_buck_bunny_360p_10mb.mp4 -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -f flv rtmp://localhost:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
+	// ffmpeg -re -stream_loop 400 -i /var/tmp/big_buck_bunny_360p_10mb.mp4 -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -f flv rtmp://0.0.0.0:1935/live/rfBd56ti2SMtYvSgD5xAV0YU99zampta7Z7S575KLkIZ9PYk
 
 	path := getDemoFile()
-	key, err := getStreamKey()
+	key, err := GetStreamKey("movie")
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func streamMp4ToRtmp(ctx context.Context, wait chan struct{}) error {
 	}
 
 	argstr := "-re -stream_loop 1000 -i " + path + " -c:v libx264 -preset veryfast -b:v 3000k -maxrate 3000k -bufsize 6000k -pix_fmt yuv420p -g 50 -c:a aac -b:a 160k -ac 2 -f flv"
-	args := append(strings.Split(argstr, " "), "rtmp://localhost:1935/live/"+key)
+	args := append(strings.Split(argstr, " "), "rtmp://0.0.0.0:1935/live/"+key)
 	log.Infof("args %v", args)
 	ffmpeg := exec.CommandContext(ctx, "ffmpeg", args...)
 
@@ -225,13 +225,13 @@ func streamMp4ToRtmp(ctx context.Context, wait chan struct{}) error {
 		}
 	}()
 	time.AfterFunc(1*time.Second, func() {
-		go rtmpToRtp("rtmp://localhost:1935/live/movie", ctx, wait)
+		go rtmpToRtp("rtmp://0.0.0.0:1935/live/movie", ctx, wait)
 	})
 	return nil
 }
 
 func rtmpToRtp(rtmpInput string, ctx context.Context, wait chan struct{}) error {
-	// ffmpeg -i rtmp://localhost:1935/live/movie -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:3004 -vn -c:a libopus -f rtp rtp://127.0.0.1:3006
+	// ffmpeg -i rtmp://0.0.0.0:1935/live/movie -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:3004 -vn -c:a libopus -f rtp rtp://127.0.0.1:3006
 	args := "-i " + rtmpInput + " -an -vcodec libvpx -cpu-used 5 -deadline 1 -g 10 -error-resilient 1 -auto-alt-ref 1 -f rtp rtp://127.0.0.1:3004 -vn -c:a libopus -f rtp rtp://127.0.0.1:3006"
 	log.Infof("ffmpeg %v", args)
 	ffmpeg := exec.CommandContext(ctx, "ffmpeg", strings.Split(args, " ")...)
@@ -269,10 +269,11 @@ type streamResp struct {
 	Data   string `json:"data"`
 }
 
-func getStreamKey() (string, error) {
-	resp, err := http.Get("http://localhost:8090/control/get?room=movie")
+func GetStreamKey(room string) (string, error) {
+	resp, err := http.Get("http://0.0.0.0:8090/control/get?room=" + room)
 	if err != nil {
 		log.Errorf("http error %v", err)
+		return "", err
 	}
 
 	body, err2 := ioutil.ReadAll(resp.Body)
@@ -295,10 +296,10 @@ func getStreamKey() (string, error) {
 
 func getDemoFile() string {
 	var filepath string
-	filepath = "/var/tmp/big_buck_bunny_360p_10mb.mp4"
+	filepath = "/var/tmp/file_example_MP4_1280_10MG.mp4"
 	if _, err := os.Stat(filepath); os.IsNotExist(err) {
 		log.Infof("download file...")
-		err := util.DownloadFile(filepath, "https://sample-videos.com/video123/mp4/360/big_buck_bunny_360p_10mb.mp4")
+		err := util.DownloadFile(filepath, "https://file-examples-com.github.io/uploads/2017/04/file_example_MP4_1280_10MG.mp4")
 		if err != nil {
 			log.Infof("error downloading file %v", err)
 		}

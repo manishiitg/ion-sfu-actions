@@ -116,6 +116,9 @@ func (e *etcdCoordinator) InitApi(port string) error {
 
 	rtpr := r.Group("rtmp")
 	{
+		rtpr.GET("/getkey/:room", func(c *gin.Context) {
+			getKeyFromRtmp(c)
+		})
 		rtpr.GET("/live/:session/:rtmp", func(c *gin.Context) {
 			if e.engine != nil {
 				c.String(http.StatusOK, "Engine Already Used!")
