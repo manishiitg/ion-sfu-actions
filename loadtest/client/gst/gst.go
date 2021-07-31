@@ -169,7 +169,7 @@ func (p *Pipeline) BindAppsinkToTrack(t *webrtc.TrackLocalStaticSample) {
 	trackIdUnsafe := C.CString(t.ID())
 	boundTracks[t.ID()] = t
 	boundTrackStats[t.ID()] = 0
-	C.gstreamer_send_bind_appsink_track(p.Pipeline, trackIdUnsafe, trackIdUnsafe)
+	C.cgstreamer_send_bind_appsink_track(p.Pipeline, trackIdUnsafe, trackIdUnsafe)
 }
 
 // Start starts the GStreamer Pipeline
@@ -217,8 +217,8 @@ func (p *Pipeline) GetStats() int {
 	return total
 }
 
-//export goHandlePipelineBuffer
-func goHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, localTrackID *C.char) {
+//export cgoHandlePipelineBuffer
+func cgoHandlePipelineBuffer(buffer unsafe.Pointer, bufferLen C.int, duration C.int, localTrackID *C.char) {
 	// log.Info("localtrack: %v", C.GoString(localTrackID))
 	var track *webrtc.TrackLocalStaticSample = boundTracks[C.GoString(localTrackID)]
 	goDuration := time.Duration(duration)

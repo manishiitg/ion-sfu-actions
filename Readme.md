@@ -9,6 +9,7 @@ This is code sample of some actions to be performed with ion-sfu using apis and 
 - Save to Webm   (go run main.go savetodisk)
 - Track to RTMP Publish   (go run main.go stream)
 - API Server     (go run main.go server)
+- Simple Gstreamer Send (go run main.go send)
 
 
 This is not ready for production at all right now, rather its more experimental basis

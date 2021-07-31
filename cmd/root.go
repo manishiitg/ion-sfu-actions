@@ -21,8 +21,8 @@ var rootCmd = &cobra.Command{
 func init() {
 	log.Init("info")
 	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVarP(&caddr, "caddr", "g", "http://0.0.0.0:4000/", "SFU Coordinator")
-	rootCmd.PersistentFlags().StringVarP(&sfuaddr, "sfuaddr", "", "", "Direct SFU URL")
+	rootCmd.PersistentFlags().StringVarP(&caddr, "caddr", "g", "", "SFU Coordinator")
+	rootCmd.PersistentFlags().StringVarP(&sfuaddr, "sfuaddr", "", "https://sfu.excellencetechnologies.info/", "Direct SFU URL")
 	rootCmd.PersistentFlags().StringVarP(&session, "session", "s", "test", "join session name")
 
 	if len(sfuaddr) != 0 {

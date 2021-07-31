@@ -89,7 +89,7 @@ void gstreamer_seek(GstElement *pipeline, int64_t seek_pos) {
     }
 }
 
-GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer user_data) {
+GstFlowReturn cgstreamer_send_new_sample_handler(GstElement *object, gpointer user_data) {
   GstSample *sample = NULL;
   GstBuffer *buffer = NULL;
   gpointer copy = NULL;
@@ -100,7 +100,7 @@ GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer use
     buffer = gst_sample_get_buffer(sample);
     if (buffer) {
       gst_buffer_extract_dup(buffer, 0, gst_buffer_get_size(buffer), &copy, &copy_size);
-      goHandlePipelineBuffer(copy, copy_size, GST_BUFFER_DURATION(buffer), user_data);
+      cgoHandlePipelineBuffer(copy, copy_size, GST_BUFFER_DURATION(buffer), user_data);
     }
     gst_sample_unref (sample);
   }
@@ -108,10 +108,10 @@ GstFlowReturn gstreamer_send_new_sample_handler(GstElement *object, gpointer use
   return GST_FLOW_OK;
 }
 
-void gstreamer_send_bind_appsink_track(GstElement *pipeline, char *appSinkName, char *localTrackID) {
+void cgstreamer_send_bind_appsink_track(GstElement *pipeline, char *appSinkName, char *localTrackID) {
   GstElement *appsink = gst_bin_get_by_name(GST_BIN(pipeline), appSinkName);
   g_object_set(appsink, "emit-signals", TRUE, NULL); 
-  g_signal_connect(appsink, "new-sample", G_CALLBACK(gstreamer_send_new_sample_handler), localTrackID); 
+  g_signal_connect(appsink, "new-sample", G_CALLBACK(cgstreamer_send_new_sample_handler), localTrackID); 
 }
 
 void gstreamer_receive_push_buffer(GstElement *pipeline, void *buffer, int len, char* element_name) {
@@ -256,6 +256,5 @@ void gstreamer_compositor_relayout_videos(GstElement *compositor) {
   }
 
 }
-
 
 
