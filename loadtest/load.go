@@ -120,7 +120,6 @@ func run(e *sdk.Engine, addr, session, file, role string, total, duration, cycle
 			}
 
 			crole := role
-
 			if role == "sub" && i == 0 {
 				crole = "pubsub" // even if doing load test of sub, need one publisher at least!
 			}
