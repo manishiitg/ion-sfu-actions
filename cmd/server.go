@@ -29,7 +29,7 @@ var eaddr, ipaddr, port, saddr string
 
 func init() {
 	serverCmd.PersistentFlags().StringVarP(&eaddr, "eaddr", "e", "0.0.0.0:2379", "etcd host to connect")
-	serverCmd.PersistentFlags().StringVarP(&ipaddr, "ipaddr", "", "5.9.18.28", "ip address of current server")         //TODO remove this ip
+	serverCmd.PersistentFlags().StringVarP(&ipaddr, "ipaddr", "", "", "ip address of current server")                  //TODO remove this ip
 	serverCmd.PersistentFlags().StringVarP(&saddr, "saddr", "", "http://5.9.18.28:4000/", "server cluster ip address") //TODO remove this ip
 	serverCmd.PersistentFlags().StringVarP(&port, "port", "p", ":3050", "port of server")
 	serverCmd.MarkFlagRequired("ipaddr")
@@ -52,7 +52,7 @@ func serverMain(cmd *cobra.Command, args []string) error {
 
 	e, err := actions.InitEtcd(eaddr, ipaddr, port, saddr)
 	if err != nil {
-		log.Errorf("unable to connect to etd %v", err)
+		log.Errorf("unable to connect to etd %v with connection ip %v", err, eaddr)
 		return err
 	}
 	err = e.InitApi(port)

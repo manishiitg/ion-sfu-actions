@@ -136,6 +136,7 @@ func DownloadFile(filepath string, url string) error {
 }
 
 func GetEngineStats(e *sdk.Engine, cancel <-chan struct{}) {
+	go e.Stats(3, cancel)
 	go func() {
 		ticker := time.NewTicker(3 * time.Second)
 		defer ticker.Stop()
@@ -144,7 +145,7 @@ func GetEngineStats(e *sdk.Engine, cancel <-chan struct{}) {
 			case <-cancel:
 				return
 			case <-ticker.C:
-				clients, totalRecvBW, totalSendBW := e.GetStat(3)
+				clients, totalRecvBW, totalSendBW := e.GetStat()
 				info := fmt.Sprintf("Clients: %d\n", clients)
 				info += fmt.Sprintf("RecvBandWidth: %d KB/s\n", totalRecvBW)
 				info += fmt.Sprintf("SendBandWidth: %d KB/s\n", totalSendBW)
