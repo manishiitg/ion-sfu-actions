@@ -1,7 +1,7 @@
 FROM golang:1.16-alpine as base 
 
 ENV GO111MODULE=on
-ENV GIN_MODE=release
+# ENV GIN_MODE=release
 
 WORKDIR $GOPATH/src/github.com/manishiitg/actions
 

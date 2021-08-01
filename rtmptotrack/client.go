@@ -270,6 +270,8 @@ type streamResp struct {
 }
 
 func GetStreamKey(room string) (string, error) {
+	// util.StartAction("rtmptotrack", room)
+	// this starts an action which never stops and also without an engine. so it causes a problem
 	resp, err := http.Get("http://0.0.0.0:8090/control/get?room=" + room)
 	if err != nil {
 		log.Errorf("http error %v", err)
